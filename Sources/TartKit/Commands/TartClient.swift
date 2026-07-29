@@ -56,6 +56,36 @@ public struct TartClient: Sendable {
     return result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
+  // MARK: - 生命周期
+
+  /// 启动虚拟机，返回一条持续到进程退出的输出流。
+  ///
+  /// `tart run` 是长驻前台进程：它不会「启动完就返回」，而是一直运行到虚拟机关闭。
+  /// 所以这里给的是流，调用方需要持有它直到结束，
+  /// 释放流会连带终止子进程（见 `TartExecutor.stream`）。
+  public func runVM(name: String, profile: RunProfile) -> AsyncThrowingStream<CommandEvent, any Error> {
+    executor.stream(profile.arguments(vmName: name))
+  }
+
+  /// 优雅关闭虚拟机。
+  ///
+  /// - Parameter timeout: 等待客户机自行关机的秒数，超时后强制断电。
+  ///   传 nil 用 tart 的默认值。
+  public func stop(name: String, timeout: UInt? = nil) async throws {
+    var arguments = ["stop", name]
+    if let timeout {
+      arguments += ["--timeout", String(timeout)]
+    }
+    try await runChecked(arguments)
+  }
+
+  /// 挂起虚拟机，把状态存到磁盘。
+  ///
+  /// 只对以 `--suspendable` 启动的虚拟机有效，否则 tart 会拒绝。
+  public func suspend(name: String) async throws {
+    try await runChecked(["suspend", name])
+  }
+
   // MARK: - 底层
 
   /// 执行命令，非零退出码一律转成 `TartError.commandFailed`。

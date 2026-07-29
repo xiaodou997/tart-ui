@@ -2,10 +2,7 @@ import Foundation
 import Observation
 import TartKit
 
-/// 虚拟机列表的单一数据源。
-///
-/// 目前只做「拉取 + 展示」。后续阶段会在这里接入 FSEvents 监听和轮询，
-/// 把三条状态通道（文件系统事件、轮询、自有子进程表）合并到同一份数据上。
+/// 应用的状态中枢：虚拟机列表、启动配置、运行中的会话。
 @Observable
 @MainActor
 final class VMStore {
@@ -17,17 +14,31 @@ final class VMStore {
   private(set) var client: TartClient?
   private(set) var tartVersion: String?
 
-  /// 启动自检：定位 tart 并确认它能跑起来。
+  /// 由 TartPro 启动的虚拟机进程。tart 可用后才会建立。
+  private(set) var sessions: RunSessionManager?
+
+  private(set) var profiles = ProfileCollection()
+  private var profileStore: RunProfileStore?
+
+  /// 操作失败时给用户看的提示，与列表加载错误分开。
+  var actionError: String?
+
+  // MARK: - 启动自检
+
   func bootstrap(userOverride: String? = nil) async {
     do {
       let client = try TartClient(userOverride: userOverride)
       self.tartVersion = try await client.version()
       self.client = client
+      self.sessions = RunSessionManager(client: client)
       self.loadError = nil
+
+      loadProfiles()
       await refresh()
     } catch {
       // 定位失败不是「加载出错」，而是「还没配好」，界面应给出安装/指路引导。
       self.client = nil
+      self.sessions = nil
       self.loadError = error.localizedDescription
     }
   }
@@ -52,5 +63,97 @@ final class VMStore {
 
   var ociEntries: [VMListEntry] {
     entries.filter { $0.source == .oci }
+  }
+
+  func entry(id: VMListEntry.ID?) -> VMListEntry? {
+    guard let id else { return nil }
+    return entries.first { $0.id == id }
+  }
+
+  // MARK: - 启动配置
+
+  private func loadProfiles() {
+    do {
+      let store = try RunProfileStore()
+      profileStore = store
+      profiles = try store.load()
+    } catch {
+      // 配置读不出来不该挡住整个应用，退回空集合，用户重新配置即可。
+      profileStore = try? RunProfileStore()
+      profiles = ProfileCollection()
+      actionError = "启动配置读取失败，已重置：\(error.localizedDescription)"
+    }
+  }
+
+  func profile(for vmName: String, id: UUID?) -> RunProfile {
+    profiles.profile(for: vmName, id: id)
+  }
+
+  func saveProfile(_ profile: RunProfile, for vmName: String) {
+    profiles.upsert(profile, for: vmName)
+    persistProfiles()
+  }
+
+  func deleteProfile(id: UUID, for vmName: String) {
+    profiles.remove(profileID: id, for: vmName)
+    persistProfiles()
+  }
+
+  private func persistProfiles() {
+    guard let profileStore else { return }
+    do {
+      try profileStore.save(profiles)
+    } catch {
+      actionError = "启动配置保存失败：\(error.localizedDescription)"
+    }
+  }
+
+  // MARK: - 生命周期操作
+
+  func start(vmName: String, profile: RunProfile) {
+    guard let sessions else { return }
+
+    if profile.hasBlockingIssues {
+      // 有阻断性问题时不该白跑一趟让 tart 报错。
+      actionError = "启动配置有冲突，请先修正后再启动。"
+      return
+    }
+
+    sessions.start(vmName: vmName, profile: profile)
+
+    // tart run 要过一会儿才会把状态写进虚拟机目录，延迟刷新一次。
+    Task {
+      try? await Task.sleep(for: .seconds(2))
+      await refresh()
+    }
+  }
+
+  func stop(vmName: String) async {
+    guard let sessions else { return }
+    do {
+      try await sessions.stop(vmName: vmName)
+      await refresh()
+    } catch {
+      actionError = error.localizedDescription
+    }
+  }
+
+  func suspend(vmName: String) async {
+    guard let sessions else { return }
+    do {
+      try await sessions.suspend(vmName: vmName)
+      await refresh()
+    } catch {
+      // 未以 --suspendable 启动的虚拟机会走到这里，tart 的报错已经说清了原因。
+      actionError = error.localizedDescription
+    }
+  }
+
+  /// TartPro 是否掌握着这台虚拟机的进程。
+  ///
+  /// 用户可能在终端里直接 `tart run`，那样的虚拟机同样显示为运行中，
+  /// 但 TartPro 拿不到它的进程句柄，只能请求关机、不能强制结束。
+  func isManagedByApp(_ vmName: String) -> Bool {
+    sessions?.isManaged(vmName) ?? false
   }
 }

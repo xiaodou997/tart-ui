@@ -26,6 +26,18 @@ struct TartProApp: App {
       .task {
         await store.bootstrap()
       }
+      .alert(
+        "操作失败",
+        isPresented: Binding(
+          get: { store.actionError != nil },
+          set: { if !$0 { store.actionError = nil } }
+        )
+      ) {
+        Button("好") { store.actionError = nil }
+      } message: {
+        // 直接展示 tart 的原始报错，用户才知道到底哪里出了问题。
+        Text(store.actionError ?? "")
+      }
     }
     // minWidth 只是下限，不决定初始尺寸——不给 defaultSize 的话
     // 窗口会缩到内容的固有大小。
@@ -42,17 +54,8 @@ struct TartProApp: App {
 
   @ViewBuilder
   private var detailPane: some View {
-    if let selection, let entry = store.entries.first(where: { $0.id == selection }) {
-      // 详情面板的完整实现在下一阶段；先把选中链路打通。
-      VStack(alignment: .leading, spacing: 8) {
-        Text(entry.name).font(.title2.weight(.semibold))
-        Text("来源：\(entry.source == .local ? "本地" : "镜像缓存")")
-        Text("状态：\(entry.state.rawValue)")
-        Text("磁盘：\(entry.allocatedSizeGB) GB / \(entry.diskSizeGB) GB")
-        Spacer()
-      }
-      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-      .padding()
+    if let entry = store.entry(id: selection) {
+      VMDetailView(store: store, entry: entry)
     } else {
       ContentUnavailableView("未选择虚拟机", systemImage: "sidebar.left")
     }
