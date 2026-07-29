@@ -38,6 +38,11 @@ final class RunSessionManager {
     sessions.values.count { $0.state.isActive }
   }
 
+  /// 当前由 TartPro 管理且仍在运行的虚拟机名。用于退出前确认。
+  var activeVMNames: [String] {
+    sessions.values.filter { $0.state.isActive }.map(\.vmName).sorted()
+  }
+
   // MARK: - 启动
 
   /// 启动虚拟机。

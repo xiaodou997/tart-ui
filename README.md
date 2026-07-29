@@ -75,7 +75,7 @@ open .build/arm64-apple-macosx/debug/TartPro.app
 
 - [x] TartKit 地基：二进制定位、进程执行、JSON 解码、错误处理
 - [x] 只读界面：虚拟机列表、状态同步
-- [ ] 生命周期：run / stop / suspend + Run Profile 编辑器
+- [x] 生命周期：run / stop / suspend + Run Profile 编辑器 + 会话日志
 - [ ] 创建与配置：create / clone / set / rename / delete
 - [ ] 镜像仓库：pull / push / login / logout + 进度条
 - [ ] 导入导出、prune、ip

@@ -6,6 +6,8 @@ struct TartProApp: App {
   @State private var store = VMStore()
   @State private var selection: VMListEntry.ID?
 
+  @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+
   var body: some Scene {
     WindowGroup {
       Group {
@@ -24,6 +26,10 @@ struct TartProApp: App {
       }
       .frame(minWidth: 760, minHeight: 460)
       .task {
+        // AppDelegate 拿不到 SwiftUI 的 @State，退出确认所需的数据从这里注入。
+        AppDelegate.runningVMNamesProvider = { [store] in
+          store.sessions?.activeVMNames ?? []
+        }
         await store.bootstrap()
       }
       .alert(
