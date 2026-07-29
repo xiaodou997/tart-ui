@@ -17,6 +17,9 @@ final class VMStore {
   /// 由 TartPro 启动的虚拟机进程。tart 可用后才会建立。
   private(set) var sessions: RunSessionManager?
 
+  /// 创建、克隆这类长时操作。
+  let operations = OperationCenter()
+
   private(set) var profiles = ProfileCollection()
   private var profileStore: RunProfileStore?
 
@@ -155,5 +158,106 @@ final class VMStore {
   /// 但 TartPro 拿不到它的进程句柄，只能请求关机、不能强制结束。
   func isManagedByApp(_ vmName: String) -> Bool {
     sessions?.isManaged(vmName) ?? false
+  }
+
+  // MARK: - 创建与克隆
+
+  func createVM(
+    name: String,
+    source: VMCreationSource,
+    diskSizeGB: UInt?,
+    diskFormat: DiskFormat?
+  ) {
+    guard let client else { return }
+
+    let title: String
+    switch source {
+    case .linux: title = "创建 Linux 虚拟机「\(name)」"
+    case .macOSFromIPSW: title = "创建 macOS 虚拟机「\(name)」"
+    }
+
+    operations.run(
+      title: title,
+      stream: { client.create(name: name, source: source, diskSizeGB: diskSizeGB, diskFormat: diskFormat) },
+      onSuccess: { [weak self] in await self?.refresh() }
+    )
+  }
+
+  func cloneVM(source: String, newName: String, insecure: Bool = false, concurrency: UInt? = nil) {
+    guard let client else { return }
+
+    operations.run(
+      title: "克隆「\(source)」→「\(newName)」",
+      stream: { client.clone(source: source, newName: newName, insecure: insecure, concurrency: concurrency) },
+      onSuccess: { [weak self] in await self?.refresh() }
+    )
+  }
+
+  // MARK: - 修改与删除
+
+  func updateConfig(
+    name: String,
+    cpuCount: Int? = nil,
+    memoryMB: Int? = nil,
+    display: DisplayResolution? = nil,
+    displayUnit: DisplayUnit? = nil,
+    randomMAC: Bool = false,
+    randomSerial: Bool = false,
+    diskSizeGB: Int? = nil
+  ) async {
+    guard let client else { return }
+    do {
+      try await client.set(
+        name: name,
+        cpuCount: cpuCount,
+        memoryMB: memoryMB,
+        display: display,
+        displayUnit: displayUnit,
+        randomMAC: randomMAC,
+        randomSerial: randomSerial,
+        diskSizeGB: diskSizeGB
+      )
+      await refresh()
+    } catch {
+      actionError = error.localizedDescription
+    }
+  }
+
+  func rename(name: String, to newName: String) async {
+    guard let client else { return }
+    do {
+      try await client.rename(name: name, to: newName)
+      // 启动配置要跟着搬迁，否则用户配好的参数会失联。
+      profiles.rename(vmName: name, to: newName)
+      persistProfiles()
+      await refresh()
+    } catch {
+      actionError = error.localizedDescription
+    }
+  }
+
+  /// 删除虚拟机。不可撤销，调用前必须已经过用户确认。
+  func delete(names: [String]) async {
+    guard let client else { return }
+    do {
+      try await client.delete(names: names)
+      for name in names {
+        profiles.removeAll(for: name)
+      }
+      persistProfiles()
+      await refresh()
+    } catch {
+      actionError = error.localizedDescription
+    }
+  }
+
+  /// 清理掉已经不存在的虚拟机的启动配置。
+  ///
+  /// 用户可能绕过界面直接在终端 `tart delete`，需要这个兜底。
+  func pruneOrphanProfiles() {
+    let existing = Set(entries.map(\.name))
+    guard !existing.isEmpty else { return }
+    profiles.prune(keepingOnly: existing)
+    persistProfiles()
   }
 }

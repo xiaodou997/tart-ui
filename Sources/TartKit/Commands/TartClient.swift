@@ -64,7 +64,7 @@ public struct TartClient: Sendable {
   /// 所以这里给的是流，调用方需要持有它直到结束，
   /// 释放流会连带终止子进程（见 `TartExecutor.stream`）。
   public func runVM(name: String, profile: RunProfile) -> AsyncThrowingStream<CommandEvent, any Error> {
-    executor.stream(profile.arguments(vmName: name))
+    stream(profile.arguments(vmName: name))
   }
 
   /// 优雅关闭虚拟机。
@@ -87,6 +87,11 @@ public struct TartClient: Sendable {
   }
 
   // MARK: - 底层
+
+  /// 流式执行命令，用于 pull / clone / create 这类长时操作。
+  public func stream(_ arguments: [String]) -> AsyncThrowingStream<CommandEvent, any Error> {
+    executor.stream(arguments)
+  }
 
   /// 执行命令，非零退出码一律转成 `TartError.commandFailed`。
   @discardableResult

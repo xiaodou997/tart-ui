@@ -57,6 +57,15 @@ open .build/arm64-apple-macosx/debug/TartPro.app
 - **集成测试**跑真实的 tart 二进制，验证解码器和上游实际输出一致。只包含只读命令
   （`list` / `get` / `--version`），不会创建、修改或删除任何虚拟机。
   没装 tart 的机器上自动跳过。
+- **live 测试**有副作用，默认不跑，需显式开启：
+
+  ```bash
+  # 真实启停一台已有的虚拟机（无图形模式，约 80 秒）
+  TARTPRO_LIVE_VM=<虚拟机名> swift test --filter LiveVMTests
+
+  # 真实走一遍创建 → 改配置 → 重命名 → 删除（用完即清）
+  TARTPRO_LIVE_CRUD=1 swift test --filter LiveCRUDTests
+  ```
 
 ## 已知的坑
 
@@ -76,7 +85,7 @@ open .build/arm64-apple-macosx/debug/TartPro.app
 - [x] TartKit 地基：二进制定位、进程执行、JSON 解码、错误处理
 - [x] 只读界面：虚拟机列表、状态同步
 - [x] 生命周期：run / stop / suspend + Run Profile 编辑器 + 会话日志
-- [ ] 创建与配置：create / clone / set / rename / delete
+- [x] 创建与配置：create / clone / set / rename / delete
 - [ ] 镜像仓库：pull / push / login / logout + 进度条
 - [ ] 导入导出、prune、ip
 - [ ] exec（先做非交互式简版）

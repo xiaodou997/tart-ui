@@ -11,6 +11,10 @@ struct VMDetailView: View {
   @State private var isEditingProfile = false
   @State private var isShowingLog = false
   @State private var isStopping = false
+  @State private var isEditingConfig = false
+  @State private var isRenaming = false
+  @State private var isCloning = false
+  @State private var isConfirmingDelete = false
 
   private var session: RunSession? {
     store.sessions?.session(for: entry.name)
@@ -54,6 +58,54 @@ struct VMDetailView: View {
         SessionLogView(session: session)
       }
     }
+    .sheet(isPresented: $isEditingConfig) {
+      if let details {
+        EditConfigSheet(
+          vmName: entry.name,
+          current: details,
+          isRunning: entry.isRunning
+        ) { changes in
+          Task {
+            await store.updateConfig(
+              name: entry.name,
+              cpuCount: changes.cpuCount,
+              memoryMB: changes.memoryMB,
+              display: changes.display,
+              randomMAC: changes.randomMAC,
+              randomSerial: changes.randomSerial,
+              diskSizeGB: changes.diskSizeGB
+            )
+            await loadDetails()
+          }
+        }
+      }
+    }
+    .sheet(isPresented: $isRenaming) {
+      RenameSheet(currentName: entry.name, existingNames: otherNames) { newName in
+        Task { await store.rename(name: entry.name, to: newName) }
+      }
+    }
+    .sheet(isPresented: $isCloning) {
+      CloneVMSheet(sourceName: entry.name, existingNames: allNames) { source, newName, insecure, concurrency in
+        store.cloneVM(source: source, newName: newName, insecure: insecure, concurrency: concurrency)
+      }
+    }
+    .sheet(isPresented: $isConfirmingDelete) {
+      DeleteConfirmation(
+        entries: [entry],
+        runningNames: entry.isRunning ? [entry.name] : []
+      ) {
+        Task { await store.delete(names: [entry.name]) }
+      }
+    }
+  }
+
+  private var allNames: Set<String> {
+    Set(store.entries.map(\.name))
+  }
+
+  private var otherNames: Set<String> {
+    allNames.subtracting([entry.name])
   }
 
   // MARK: - 头部
@@ -127,6 +179,27 @@ struct VMDetailView: View {
       }
 
       Spacer()
+
+      Menu {
+        Button("克隆…") { isCloning = true }
+
+        // OCI 镜像是只读缓存，改不了也重命名不了，只能克隆或删除。
+        if entry.source == .local {
+          Button("修改配置…") { isEditingConfig = true }
+            .disabled(details == nil)
+          Button("重命名…") { isRenaming = true }
+            .disabled(entry.isRunning)
+        }
+
+        Divider()
+
+        Button("删除…", role: .destructive) { isConfirmingDelete = true }
+          .disabled(entry.isRunning)
+      } label: {
+        Label("更多", systemImage: "ellipsis.circle")
+      }
+      .menuStyle(.borderlessButton)
+      .fixedSize()
     }
   }
 

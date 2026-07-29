@@ -5,6 +5,7 @@ import TartKit
 struct TartProApp: App {
   @State private var store = VMStore()
   @State private var selection: VMListEntry.ID?
+  @State private var isCreating = false
 
   @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
@@ -17,10 +18,27 @@ struct TartProApp: App {
           }
         } else {
           NavigationSplitView {
-            VMListView(store: store, selection: $selection)
-              .navigationSplitViewColumnWidth(min: 220, ideal: 260)
+            VStack(spacing: 0) {
+              VMListView(store: store, selection: $selection)
+              OperationStatusBar(center: store.operations)
+            }
+            .navigationSplitViewColumnWidth(min: 240, ideal: 280)
+            .toolbar {
+              ToolbarItem {
+                Button {
+                  isCreating = true
+                } label: {
+                  Label("新建虚拟机", systemImage: "plus")
+                }
+              }
+            }
           } detail: {
             detailPane
+          }
+          .sheet(isPresented: $isCreating) {
+            CreateVMSheet(existingNames: Set(store.entries.map(\.name))) { name, source, diskSize, format in
+              store.createVM(name: name, source: source, diskSizeGB: diskSize, diskFormat: format)
+            }
           }
         }
       }
