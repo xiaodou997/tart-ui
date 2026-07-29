@@ -88,7 +88,16 @@ $ICON_ENTRY
   <!-- TartPro 自身不虚拟化任何东西，只调用 tart 命令行；
        虚拟化 entitlement 属于 tart 二进制，不需要在这里声明。 -->
 </dict>
+</plist>
 PLIST
+
+# 校验 plist 格式。缺个结束标签这类问题不会让应用起不来（CFBundle 有容错），
+# 但图标之类的声明会被静默忽略，排查起来很费劲。
+if ! plutil -lint "$APP_DIR/Contents/Info.plist" >/dev/null 2>&1; then
+  echo "错误：生成的 Info.plist 格式不合法" >&2
+  plutil -lint "$APP_DIR/Contents/Info.plist" >&2
+  exit 1
+fi
 
 detect_signing_identity
 echo "==> 签名（${SIGN_DESCRIPTION}）"
