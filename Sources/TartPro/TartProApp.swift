@@ -8,6 +8,7 @@ struct TartProApp: App {
   @State private var isCreating = false
   @State private var isPulling = false
   @State private var isManagingRegistry = false
+  @State private var isPruning = false
 
   @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
@@ -30,7 +31,9 @@ struct TartProApp: App {
                 Menu {
                   Button("新建虚拟机…") { isCreating = true }
                   Button("拉取镜像…") { isPulling = true }
+                  Button("从文件导入…") { importVM() }
                   Divider()
+                  Button("清理磁盘空间…") { isPruning = true }
                   Button("仓库账号…") { isManagingRegistry = true }
                 } label: {
                   Label("新建", systemImage: "plus")
@@ -49,6 +52,9 @@ struct TartProApp: App {
             PullImageSheet(recentReferences: store.ociEntries.map(\.name)) { reference, insecure, concurrency in
               store.pull(reference: reference, insecure: insecure, concurrency: concurrency)
             }
+          }
+          .sheet(isPresented: $isPruning) {
+            PruneSheet(store: store)
           }
           .sheet(isPresented: $isManagingRegistry) {
             RegistryLoginSheet(
@@ -95,6 +101,28 @@ struct TartProApp: App {
         .keyboardShortcut("r")
       }
     }
+  }
+
+  /// 从导出文件恢复虚拟机。
+  private func importVM() {
+    let panel = NSOpenPanel()
+    panel.allowsMultipleSelection = false
+    panel.canChooseDirectories = false
+    panel.message = "选择用 tart export 导出的文件"
+
+    guard panel.runModal() == .OK, let url = panel.url else { return }
+
+    // 用文件名作为默认虚拟机名，去掉扩展名；撞名就加序号。
+    let base = url.deletingPathExtension().lastPathComponent
+    let existing = Set(store.entries.map(\.name))
+    var name = base
+    var index = 2
+    while existing.contains(name) {
+      name = "\(base)-\(index)"
+      index += 1
+    }
+
+    store.importVM(from: url.path, name: name)
   }
 
   @ViewBuilder

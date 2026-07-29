@@ -79,6 +79,10 @@ open .build/arm64-apple-macosx/debug/TartPro.app
    返回字符串小数（如 `"31.057"`）。两者必须分开建模。
 4. **窗口默认尺寸。** `.frame(minWidth:)` 只是下限，不决定初始尺寸，
    要用 `.defaultSize()`，否则窗口会缩到内容的固有大小。
+5. **密码只能走 stdin。** `tart login` 用 `--password-stdin`。把密码放进命令行参数
+   会让它出现在 `ps` 输出里，同机任何进程都读得到。见 `TartClient+Registry`。
+6. **prune 没有 dry-run。** 命令一执行就真的删。`PrunePlanner` 复刻了 tart 的
+   选择逻辑做预览，但看不到 IPSW 缓存（`tart list` 不列它），界面上必须标明预览不完整。
 
 ## 进度
 
@@ -87,5 +91,5 @@ open .build/arm64-apple-macosx/debug/TartPro.app
 - [x] 生命周期：run / stop / suspend + Run Profile 编辑器 + 会话日志
 - [x] 创建与配置：create / clone / set / rename / delete
 - [x] 镜像仓库：pull / push / login / logout
-- [ ] 导入导出、prune、ip
-- [ ] exec（先做非交互式简版）
+- [x] 导入导出、prune、ip
+- [x] exec（非交互式）

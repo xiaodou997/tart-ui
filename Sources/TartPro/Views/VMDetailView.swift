@@ -16,6 +16,9 @@ struct VMDetailView: View {
   @State private var isCloning = false
   @State private var isConfirmingDelete = false
   @State private var isPushing = false
+  @State private var isExecuting = false
+  @State private var ipAddress: String?
+  @State private var isLookingUpIP = false
 
   private var session: RunSession? {
     store.sessions?.session(for: entry.name)
@@ -33,6 +36,10 @@ struct VMDetailView: View {
 
         if let session, session.state.isActive {
           runningBanner(session: session)
+        }
+
+        if entry.isRunning {
+          networkSection
         }
 
         specSection
@@ -98,6 +105,9 @@ struct VMDetailView: View {
           concurrency: concurrency, chunkSizeMB: chunk, labels: labels, populateCache: cache
         )
       }
+    }
+    .sheet(isPresented: $isExecuting) {
+      ExecSheet(vmName: entry.name, store: store)
     }
     .sheet(isPresented: $isConfirmingDelete) {
       DeleteConfirmation(
@@ -192,6 +202,11 @@ struct VMDetailView: View {
       Menu {
         Button("克隆…") { isCloning = true }
         Button("推送到仓库…") { isPushing = true }
+        Button("导出为文件…") { exportVM() }
+
+        if entry.isRunning {
+          Button("执行命令…") { isExecuting = true }
+        }
 
         // OCI 镜像是只读缓存，改不了也重命名不了，只能克隆或删除。
         if entry.source == .local {
@@ -229,6 +244,56 @@ struct VMDetailView: View {
     }
     .padding(10)
     .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
+  }
+
+  // MARK: - 网络
+
+  private var networkSection: some View {
+    GroupBox("网络") {
+      HStack {
+        Text("IP 地址").foregroundStyle(.secondary)
+        Spacer()
+        if let ipAddress {
+          Text(ipAddress)
+            .font(.system(.callout, design: .monospaced))
+            .textSelection(.enabled)
+          Button {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(ipAddress, forType: .string)
+          } label: {
+            Image(systemName: "doc.on.doc")
+          }
+          .buttonStyle(.borderless)
+          .help("复制")
+        } else if isLookingUpIP {
+          ProgressView().controlSize(.small)
+        } else {
+          Button("查询") { lookUpIP() }
+            .buttonStyle(.borderless)
+        }
+      }
+      .font(.callout)
+      .padding(.vertical, 6)
+    }
+  }
+
+  private func lookUpIP() {
+    isLookingUpIP = true
+    Task {
+      // 刚启动时网络还没就绪，让 tart 等一会儿再返回。
+      ipAddress = await store.ipAddress(for: entry.name, waitSeconds: 15)
+      isLookingUpIP = false
+    }
+  }
+
+  private func exportVM() {
+    let panel = NSSavePanel()
+    panel.nameFieldStringValue = "\(entry.name).tvm"
+    panel.canCreateDirectories = true
+    panel.message = "选择导出位置。虚拟机有几十 GB，导出需要一段时间。"
+
+    guard panel.runModal() == .OK, let url = panel.url else { return }
+    store.exportVM(name: entry.name, to: url.path)
   }
 
   // MARK: - 规格

@@ -324,6 +324,74 @@ final class VMStore {
     }
   }
 
+  // MARK: - 导入导出
+
+  func exportVM(name: String, to path: String) {
+    guard let client else { return }
+
+    operations.run(
+      title: "导出「\(name)」",
+      stream: { client.export(name: name, to: path) }
+    )
+  }
+
+  func importVM(from path: String, name: String) {
+    guard let client else { return }
+
+    operations.run(
+      title: "导入「\(name)」",
+      stream: { client.importVM(from: path, name: name) },
+      onSuccess: { [weak self] in await self?.refresh() }
+    )
+  }
+
+  // MARK: - 清理
+
+  /// 预测清理会删掉什么。tart 没有 dry-run，这里复刻它的选择逻辑。
+  func prunePlan(target: PruneTarget, olderThanDays: UInt?, spaceBudgetGB: UInt?) -> PrunePlanner.Plan {
+    let candidates = target == .caches ? ociEntries : localEntries
+    return PrunePlanner.plan(
+      entries: candidates,
+      target: target,
+      olderThanDays: olderThanDays,
+      spaceBudgetGB: spaceBudgetGB
+    )
+  }
+
+  func prune(target: PruneTarget, olderThanDays: UInt?, spaceBudgetGB: UInt?) async {
+    guard let client else { return }
+    do {
+      try await client.prune(
+        target: target, olderThanDays: olderThanDays, spaceBudgetGB: spaceBudgetGB
+      )
+      await refresh()
+      pruneOrphanProfiles()
+    } catch {
+      actionError = error.localizedDescription
+    }
+  }
+
+  // MARK: - 网络与远程执行
+
+  /// 查询虚拟机 IP。失败返回 nil，由调用方决定怎么展示。
+  func ipAddress(for vmName: String, waitSeconds: UInt? = nil) async -> String? {
+    guard let client else { return nil }
+    return try? await client.ip(name: vmName, waitSeconds: waitSeconds)
+  }
+
+  /// 在虚拟机内执行命令。
+  ///
+  /// 需要客户机内装有 tart-guest-agent，否则会失败。
+  func exec(vmName: String, command: [String]) async -> CommandResult? {
+    guard let client else { return nil }
+    do {
+      return try await client.exec(name: vmName, command: command)
+    } catch {
+      actionError = error.localizedDescription
+      return nil
+    }
+  }
+
   /// 清理掉已经不存在的虚拟机的启动配置。
   ///
   /// 用户可能绕过界面直接在终端 `tart delete`，需要这个兜底。
