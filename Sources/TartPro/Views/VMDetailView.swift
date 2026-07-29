@@ -15,6 +15,7 @@ struct VMDetailView: View {
   @State private var isRenaming = false
   @State private var isCloning = false
   @State private var isConfirmingDelete = false
+  @State private var isPushing = false
 
   private var session: RunSession? {
     store.sessions?.session(for: entry.name)
@@ -88,6 +89,14 @@ struct VMDetailView: View {
     .sheet(isPresented: $isCloning) {
       CloneVMSheet(sourceName: entry.name, existingNames: allNames) { source, newName, insecure, concurrency in
         store.cloneVM(source: source, newName: newName, insecure: insecure, concurrency: concurrency)
+      }
+    }
+    .sheet(isPresented: $isPushing) {
+      PushImageSheet(localName: entry.name) { local, targets, insecure, concurrency, chunk, labels, cache in
+        store.push(
+          localName: local, remoteNames: targets, insecure: insecure,
+          concurrency: concurrency, chunkSizeMB: chunk, labels: labels, populateCache: cache
+        )
       }
     }
     .sheet(isPresented: $isConfirmingDelete) {
@@ -182,6 +191,7 @@ struct VMDetailView: View {
 
       Menu {
         Button("克隆…") { isCloning = true }
+        Button("推送到仓库…") { isPushing = true }
 
         // OCI 镜像是只读缓存，改不了也重命名不了，只能克隆或删除。
         if entry.source == .local {

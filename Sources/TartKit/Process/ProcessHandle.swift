@@ -24,15 +24,37 @@ final class ProcessHandle: @unchecked Sendable {
   private var exitCode: Int32 = 0
   private var didFinish = false
 
-  init(binaryURL: URL, arguments: [String], environment: [String: String]) {
+  /// 要写入子进程 stdin 的数据。用于 `tart login --password-stdin`。
+  private let stdinData: Data?
+  private let stdinPipe = Pipe()
+
+  init(binaryURL: URL, arguments: [String], environment: [String: String], stdinData: Data? = nil) {
+    self.stdinData = stdinData
+
     process.executableURL = binaryURL
     process.arguments = arguments
     process.environment = environment
     process.standardOutput = stdoutPipe
     process.standardError = stderrPipe
-    // 不给子进程接终端输入：GUI 场景下没有 stdin 可用，
-    // 若 tart 意外发起交互式提问，应当直接失败而不是永久挂起。
-    process.standardInput = FileHandle.nullDevice
+
+    if stdinData != nil {
+      process.standardInput = stdinPipe
+    } else {
+      // 不给子进程接终端输入：GUI 场景下没有 stdin 可用，
+      // 若 tart 意外发起交互式提问，应当直接失败而不是永久挂起。
+      process.standardInput = FileHandle.nullDevice
+    }
+  }
+
+  /// 把数据写入 stdin 后立即关闭，让子进程读到 EOF。
+  ///
+  /// 只用于密码这类小数据，不做分块——大数据需要边写边读，否则会和
+  /// 子进程互相等待。
+  private func writeStdinIfNeeded() {
+    guard let stdinData else { return }
+    let handle = stdinPipe.fileHandleForWriting
+    try? handle.write(contentsOf: stdinData)
+    try? handle.close()
   }
 
   // MARK: - 累积模式
@@ -61,6 +83,7 @@ final class ProcessHandle: @unchecked Sendable {
 
       do {
         try process.run()
+        writeStdinIfNeeded()
       } catch {
         if claimFinish() {
           continuation.resume(throwing: TartError.launchFailed(underlying: error))
@@ -98,6 +121,7 @@ final class ProcessHandle: @unchecked Sendable {
 
     do {
       try process.run()
+      writeStdinIfNeeded()
     } catch {
       throw TartError.launchFailed(underlying: error)
     }

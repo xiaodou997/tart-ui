@@ -12,6 +12,9 @@ final class MockExecutor: TartExecuting, @unchecked Sendable {
   /// 记录下每一次实际收到的参数，供断言检查。
   private(set) var receivedArguments: [[String]] = []
 
+  /// 记录每次调用传入的 stdin，用于验证密码走的是标准输入而非命令行。
+  private(set) var receivedStdin: [Data?] = []
+
   var streamEvents: [CommandEvent] = []
 
   func enqueue(stdout: String = "", stderr: String = "", exitCode: Int32 = 0) {
@@ -26,9 +29,10 @@ final class MockExecutor: TartExecuting, @unchecked Sendable {
     lock.withLock { responses.append(.failure(error)) }
   }
 
-  func run(_ arguments: [String]) async throws -> CommandResult {
+  func run(_ arguments: [String], stdin: Data?) async throws -> CommandResult {
     let response: Result<CommandResult, any Error>? = lock.withLock {
       receivedArguments.append(arguments)
+      receivedStdin.append(stdin)
       return responses.isEmpty ? nil : responses.removeFirst()
     }
 

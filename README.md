@@ -86,6 +86,6 @@ open .build/arm64-apple-macosx/debug/TartPro.app
 - [x] 只读界面：虚拟机列表、状态同步
 - [x] 生命周期：run / stop / suspend + Run Profile 编辑器 + 会话日志
 - [x] 创建与配置：create / clone / set / rename / delete
-- [ ] 镜像仓库：pull / push / login / logout + 进度条
+- [x] 镜像仓库：pull / push / login / logout
 - [ ] 导入导出、prune、ip
 - [ ] exec（先做非交互式简版）

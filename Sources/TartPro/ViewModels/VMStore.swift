@@ -251,6 +251,79 @@ final class VMStore {
     }
   }
 
+  // MARK: - 镜像仓库
+
+  func pull(reference: String, insecure: Bool = false, concurrency: UInt? = nil) {
+    guard let client else { return }
+
+    operations.run(
+      title: "拉取「\(reference)」",
+      stream: { client.pull(remoteName: reference, insecure: insecure, concurrency: concurrency) },
+      onSuccess: { [weak self] in await self?.refresh() }
+    )
+  }
+
+  func push(
+    localName: String,
+    remoteNames: [String],
+    insecure: Bool = false,
+    concurrency: UInt? = nil,
+    chunkSizeMB: Int? = nil,
+    labels: [ImageLabel] = [],
+    populateCache: Bool = false
+  ) {
+    guard let client else { return }
+
+    let target = remoteNames.count == 1 ? remoteNames[0] : "\(remoteNames.count) 个目标"
+    operations.run(
+      title: "推送「\(localName)」→ \(target)",
+      stream: {
+        client.push(
+          localName: localName,
+          remoteNames: remoteNames,
+          insecure: insecure,
+          concurrency: concurrency,
+          chunkSizeMB: chunkSizeMB,
+          labels: labels,
+          populateCache: populateCache
+        )
+      },
+      onSuccess: { [weak self] in await self?.refresh() }
+    )
+  }
+
+  /// 登录仓库。成功返回 nil，失败返回错误描述。
+  ///
+  /// 不抛错而是返回描述，因为登录表单要在自己的界面上就地显示结果。
+  func login(
+    host: String,
+    username: String,
+    password: String,
+    insecure: Bool,
+    validate: Bool
+  ) async -> String? {
+    guard let client else { return "tart 不可用。" }
+    do {
+      try await client.login(
+        host: host, username: username, password: password,
+        insecure: insecure, validate: validate
+      )
+      return nil
+    } catch {
+      return error.localizedDescription
+    }
+  }
+
+  func logout(host: String) async -> String? {
+    guard let client else { return "tart 不可用。" }
+    do {
+      try await client.logout(host: host)
+      return nil
+    } catch {
+      return error.localizedDescription
+    }
+  }
+
   /// 清理掉已经不存在的虚拟机的启动配置。
   ///
   /// 用户可能绕过界面直接在终端 `tart delete`，需要这个兜底。

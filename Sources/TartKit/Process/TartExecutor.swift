@@ -32,10 +32,19 @@ public enum CommandEvent: Sendable {
 /// 抽成协议是为了让上层逻辑能在没有真实 tart、也不真的开虚拟机的前提下被测试。
 public protocol TartExecuting: Sendable {
   /// 执行并等待结束，取回完整输出。适用于 list / get / ip 这类瞬时命令。
-  func run(_ arguments: [String]) async throws -> CommandResult
+  ///
+  /// - Parameter stdin: 写入子进程标准输入的数据。密码必须走这里，
+  ///   而不是命令行参数——后者会出现在 `ps` 输出里，被同机的其他进程看到。
+  func run(_ arguments: [String], stdin: Data?) async throws -> CommandResult
 
   /// 执行并流式产出输出。适用于 pull / clone / run 这类长时命令。
   func stream(_ arguments: [String]) -> AsyncThrowingStream<CommandEvent, any Error>
+}
+
+extension TartExecuting {
+  public func run(_ arguments: [String]) async throws -> CommandResult {
+    try await run(arguments, stdin: nil)
+  }
 }
 
 /// 基于 `Foundation.Process` 的真实实现。
@@ -49,8 +58,13 @@ public struct TartExecutor: TartExecuting {
     self.environment = environment ?? ProcessInfo.processInfo.environment
   }
 
-  public func run(_ arguments: [String]) async throws -> CommandResult {
-    let handle = ProcessHandle(binaryURL: binaryURL, arguments: arguments, environment: environment)
+  public func run(_ arguments: [String], stdin: Data? = nil) async throws -> CommandResult {
+    let handle = ProcessHandle(
+      binaryURL: binaryURL,
+      arguments: arguments,
+      environment: environment,
+      stdinData: stdin
+    )
 
     return try await withTaskCancellationHandler {
       try await handle.waitForCompletion(arguments: arguments)

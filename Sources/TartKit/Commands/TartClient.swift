@@ -5,7 +5,8 @@ import Foundation
 /// 每个方法对应一条 tart 子命令。这一层只做三件事：
 /// 拼参数、执行、把输出解码成类型化结果——不含任何 UI 或状态管理逻辑。
 public struct TartClient: Sendable {
-  private let executor: any TartExecuting
+  /// 对同模块的扩展可见，registry 等命令需要直接用它传 stdin。
+  let executor: any TartExecuting
 
   public init(executor: any TartExecuting) {
     self.executor = executor

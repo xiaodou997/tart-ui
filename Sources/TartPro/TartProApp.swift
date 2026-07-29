@@ -6,6 +6,8 @@ struct TartProApp: App {
   @State private var store = VMStore()
   @State private var selection: VMListEntry.ID?
   @State private var isCreating = false
+  @State private var isPulling = false
+  @State private var isManagingRegistry = false
 
   @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
@@ -25,10 +27,13 @@ struct TartProApp: App {
             .navigationSplitViewColumnWidth(min: 240, ideal: 280)
             .toolbar {
               ToolbarItem {
-                Button {
-                  isCreating = true
+                Menu {
+                  Button("新建虚拟机…") { isCreating = true }
+                  Button("拉取镜像…") { isPulling = true }
+                  Divider()
+                  Button("仓库账号…") { isManagingRegistry = true }
                 } label: {
-                  Label("新建虚拟机", systemImage: "plus")
+                  Label("新建", systemImage: "plus")
                 }
               }
             }
@@ -39,6 +44,22 @@ struct TartProApp: App {
             CreateVMSheet(existingNames: Set(store.entries.map(\.name))) { name, source, diskSize, format in
               store.createVM(name: name, source: source, diskSizeGB: diskSize, diskFormat: format)
             }
+          }
+          .sheet(isPresented: $isPulling) {
+            PullImageSheet(recentReferences: store.ociEntries.map(\.name)) { reference, insecure, concurrency in
+              store.pull(reference: reference, insecure: insecure, concurrency: concurrency)
+            }
+          }
+          .sheet(isPresented: $isManagingRegistry) {
+            RegistryLoginSheet(
+              onLogin: { host, user, password, insecure, validate in
+                await store.login(
+                  host: host, username: user, password: password,
+                  insecure: insecure, validate: validate
+                )
+              },
+              onLogout: { host in await store.logout(host: host) }
+            )
           }
         }
       }
