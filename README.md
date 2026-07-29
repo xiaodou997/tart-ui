@@ -37,19 +37,47 @@ TartKit（核心）            TartClient / TartExecutor / TartLocator
 - Apple Silicon
 - 已安装 tart：`brew install openai/tools/tart`
 
-## 构建与运行
+## 安装
 
 ```bash
-# 运行测试
-swift test
+./scripts/install.sh
+```
 
-# 打包成 .app 并启动
-./scripts/bundle.sh
-open .build/arm64-apple-macosx/debug/TartPro.app
+构建 release 版本并装到「应用程序」文件夹，之后就是一个普通的 macOS 应用：
+启动台、聚焦搜索（Cmd+空格）都能找到，也可以拖进程序坞常驻。
+
+## 开发
+
+```bash
+swift test              # 运行测试
+./scripts/bundle.sh     # 只打包 debug 版，不安装
 ```
 
 注意必须打包成 `.app` 再运行。SwiftUI 的 `WindowGroup` 需要真实的 bundle
 （含 Info.plist）才能创建窗口，直接 `swift run` 得到的裸可执行文件会启动后立刻退出。
+
+## 换图标
+
+```bash
+./scripts/set-icon.sh 你的图.png    # 自动裁成正方形、加圆角、留白
+./scripts/set-icon.sh --raw 成品.png  # 图已经做好了，跳过处理
+./scripts/install.sh                # 应用新图标
+```
+
+图标源文件是 `Resources/icon.png`，打包时自动转成 `.icns`。
+
+## 代码签名
+
+`scripts/lib.sh` 会自动挑选签名身份：有 **Developer ID Application** 证书就用它，
+否则用临时签名（ad-hoc）。本机自用临时签名完全够。
+
+**Apple Development 和 Apple Distribution 证书被刻意跳过。** 它们签出来的应用需要
+配套的描述文件（`embedded.provisionprofile`）才能启动，直接拿来打包会让 launchd
+拒绝加载，报 `Launch failed`（错误 163）。那两张证书是给 Xcode 完整签名流程用的。
+
+要分发给别人，需要在开发者后台申请 Developer ID Application 证书，装好后本脚本
+会自动选用；随后还应做公证（`xcrun notarytool`），否则对方下载打开会被 Gatekeeper 拦。
+手动指定身份用 `TARTPRO_SIGN_IDENTITY=<名称或指纹> ./scripts/install.sh`。
 
 ## 测试
 
