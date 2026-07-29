@@ -17,7 +17,8 @@ struct TartProApp: App {
       Group {
         if store.client == nil, let error = store.loadError {
           SetupGuideView(message: error) {
-            Task { await store.bootstrap() }
+            let override = UserDefaults.standard.string(forKey: TartLocator.userOverrideDefaultsKey)
+            Task { await store.bootstrap(userOverride: override?.isEmpty == false ? override : nil) }
           }
         } else {
           NavigationSplitView {
@@ -75,7 +76,8 @@ struct TartProApp: App {
         AppDelegate.runningVMNamesProvider = { [store] in
           store.sessions?.activeVMNames ?? []
         }
-        await store.bootstrap()
+        let override = UserDefaults.standard.string(forKey: TartLocator.userOverrideDefaultsKey)
+        await store.bootstrap(userOverride: override?.isEmpty == false ? override : nil)
       }
       .alert(
         "操作失败",
@@ -100,6 +102,10 @@ struct TartProApp: App {
         }
         .keyboardShortcut("r")
       }
+    }
+
+    Settings {
+      SettingsView(store: store)
     }
   }
 

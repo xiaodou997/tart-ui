@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// tart 不可用时的引导页。
@@ -37,8 +38,14 @@ struct SetupGuideView: View {
         .padding(6)
       }
 
-      Button("重新检测", action: onRetry)
-        .keyboardShortcut(.defaultAction)
+      HStack {
+        Button("打开设置…") {
+          // 装在非标准位置时，用户需要在设置里手动指路。
+          NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        }
+        Button("重新检测", action: onRetry)
+          .keyboardShortcut(.defaultAction)
+      }
     }
     .padding(32)
     .frame(maxWidth: 460)

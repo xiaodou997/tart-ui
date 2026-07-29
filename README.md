@@ -93,3 +93,7 @@ open .build/arm64-apple-macosx/debug/TartPro.app
 - [x] 镜像仓库：pull / push / login / logout
 - [x] 导入导出、prune、ip
 - [x] exec（非交互式）
+- [x] 状态自动同步（轮询 + 目录监听）
+- [x] 设置：手动指定 tart 路径
+
+至此已覆盖 tart 的全部命令。

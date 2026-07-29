@@ -26,6 +26,12 @@ final class VMStore {
   /// 操作失败时给用户看的提示，与列表加载错误分开。
   var actionError: String?
 
+  private var pollingTask: Task<Void, Never>?
+  private var watcher: DirectoryWatcher?
+
+  /// 轮询间隔。虚拟机的状态变化不需要毫秒级响应，间隔太短只是白耗 IO。
+  private let pollInterval: Duration = .seconds(3)
+
   // MARK: - 启动自检
 
   func bootstrap(userOverride: String? = nil) async {
@@ -38,6 +44,8 @@ final class VMStore {
 
       loadProfiles()
       await refresh()
+      pruneOrphanProfiles()
+      startAutoSync()
     } catch {
       // 定位失败不是「加载出错」，而是「还没配好」，界面应给出安装/指路引导。
       self.client = nil
@@ -57,6 +65,58 @@ final class VMStore {
       loadError = nil
     } catch {
       loadError = error.localizedDescription
+    }
+  }
+
+  // MARK: - 自动同步
+
+  /// 启动状态自动同步。
+  ///
+  /// 两条通道合并：
+  /// - **轮询** `tart list` 拿运行状态。状态判断以 tart 自己的结论为准，
+  ///   比我们去猜文件系统里的标志可靠。
+  /// - **目录监听** 即时感知虚拟机增删。用户可能在终端里直接操作，
+  ///   只靠轮询最长要等一整个周期才更新，界面会显得发木。
+  private func startAutoSync() {
+    stopAutoSync()
+
+    pollingTask = Task { [weak self] in
+      while !Task.isCancelled {
+        guard let self else { return }
+        try? await Task.sleep(for: self.pollInterval)
+        guard !Task.isCancelled else { return }
+        await self.refreshQuietly()
+      }
+    }
+
+    let watcher = DirectoryWatcher(url: DirectoryWatcher.tartVMsDirectory()) { [weak self] in
+      Task { @MainActor in
+        await self?.refreshQuietly()
+      }
+    }
+    // 目录不存在时监听会失败，此时退回纯轮询即可，不必打扰用户。
+    watcher.start()
+    self.watcher = watcher
+  }
+
+  func stopAutoSync() {
+    pollingTask?.cancel()
+    pollingTask = nil
+    watcher?.stop()
+    watcher = nil
+  }
+
+  /// 后台刷新：不显示加载指示，失败也不弹错。
+  ///
+  /// 自动刷新是背景行为，因为一次网络抖动或临时锁冲突就打断用户操作是很烦人的。
+  /// 真正的错误会在用户主动操作时暴露出来。
+  private func refreshQuietly() async {
+    guard let client else { return }
+    guard let fresh = try? await client.list() else { return }
+
+    // 内容没变就不要碰 entries，避免无谓地触发整个列表重绘。
+    if fresh != entries {
+      entries = fresh
     }
   }
 
