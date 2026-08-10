@@ -34,7 +34,7 @@ struct EditConfigSheet: View {
   var body: some View {
     VStack(spacing: 0) {
       VStack(alignment: .leading, spacing: 2) {
-        Text("修改配置").font(.headline)
+        Text(L10n.text("Edit Configuration")).font(.headline)
         Text(vmName).font(.caption).foregroundStyle(.secondary)
       }
       .frame(maxWidth: .infinity, alignment: .leading)
@@ -43,7 +43,7 @@ struct EditConfigSheet: View {
       Divider()
 
       if isRunning {
-        Label("虚拟机正在运行，配置修改需要关机后才会生效。", systemImage: "info.circle")
+        Label(L10n.text("The VM is running. Configuration changes take effect after shutdown."), systemImage: "info.circle")
           .font(.caption)
           .frame(maxWidth: .infinity, alignment: .leading)
           .padding(10)
@@ -51,62 +51,62 @@ struct EditConfigSheet: View {
       }
 
       Form {
-        Section("处理器与内存") {
+        Section(L10n.text("CPU and Memory")) {
           HStack {
             Text("CPU")
             Slider(value: $cpuCount, in: 1...Double(maxCPU), step: 1)
-            Text("\(Int(cpuCount)) 核")
+            Text(L10n.format("%@ cores", String(Int(cpuCount))))
               .monospacedDigit()
               .frame(width: 60, alignment: .trailing)
           }
 
           HStack {
-            Text("内存")
+            Text(L10n.text("Memory"))
             Slider(value: $memoryGB, in: 2...Double(maxMemoryGB), step: 1)
-            Text("\(Int(memoryGB)) GB")
+            Text(L10n.format("%@ GB", String(Int(memoryGB))))
               .monospacedDigit()
               .frame(width: 60, alignment: .trailing)
           }
         }
 
-        Section("显示") {
+        Section(L10n.text("Display")) {
           HStack {
-            TextField("宽", text: $width)
+            TextField(L10n.text("Width"), text: $width)
               .frame(width: 80)
             Text("×")
-            TextField("高", text: $height)
+            TextField(L10n.text("Height"), text: $height)
               .frame(width: 80)
-            Text("像素")
+            Text(L10n.text("pixels"))
               .foregroundStyle(.secondary)
           }
 
           if parsedResolution == nil && (width != String(current.display.width) || height != String(current.display.height)) {
-            Label("分辨率必须是正整数。", systemImage: "exclamationmark.triangle.fill")
+            Label(L10n.text("Resolution must be positive integers."), systemImage: "exclamationmark.triangle.fill")
               .font(.caption)
               .foregroundStyle(.orange)
           }
         }
 
-        Section("磁盘") {
+        Section(L10n.text("Disk")) {
           HStack {
             Slider(value: $diskSizeGB, in: Double(current.diskSizeGB)...Double(max(current.diskSizeGB * 4, 200)), step: 10)
-            Text("\(Int(diskSizeGB)) GB")
+            Text(L10n.format("%@ GB", String(Int(diskSizeGB))))
               .monospacedDigit()
               .frame(width: 70, alignment: .trailing)
           }
 
           // tart 只允许扩大磁盘，滑块下限已经卡在当前值，这里再说明一次原因。
-          Text("磁盘只能扩大，不能缩小——缩小会丢数据。当前 \(current.diskSizeGB) GB。")
+          Text(L10n.format("The disk can only grow, not shrink; shrinking can cause data loss. Current size: %@ GB.", String(current.diskSizeGB)))
             .font(.caption)
             .foregroundStyle(.secondary)
         }
 
-        Section("标识") {
-          Toggle("重新生成随机 MAC 地址", isOn: $randomMAC)
-            .help("克隆出来的虚拟机如果要同时联网，需要各自不同的 MAC 地址")
+        Section(L10n.text("Identity")) {
+          Toggle(L10n.text("Generate a Random MAC Address"), isOn: $randomMAC)
+            .help(L10n.text("Cloned VMs need different MAC addresses if they will run on the same network"))
 
           if current.os == "darwin" {
-            Toggle("重新生成随机序列号", isOn: $randomSerial)
+            Toggle(L10n.text("Generate a Random Serial Number"), isOn: $randomSerial)
           }
         }
       }
@@ -116,14 +116,14 @@ struct EditConfigSheet: View {
 
       HStack {
         if hasChanges {
-          Text("将修改：\(changeSummary)")
+          Text(L10n.format("Changes: %@", changeSummary))
             .font(.caption)
             .foregroundStyle(.secondary)
         }
         Spacer()
-        Button("取消") { dismiss() }
+        Button(L10n.text("Cancel")) { dismiss() }
           .keyboardShortcut(.cancelAction)
-        Button("保存") {
+        Button(L10n.text("Save")) {
           onSave(changes)
           dismiss()
         }
@@ -164,13 +164,13 @@ struct EditConfigSheet: View {
 
   private var changeSummary: String {
     var parts: [String] = []
-    if changes.cpuCount != nil { parts.append("CPU") }
-    if changes.memoryMB != nil { parts.append("内存") }
-    if changes.display != nil { parts.append("分辨率") }
-    if changes.diskSizeGB != nil { parts.append("磁盘") }
+    if changes.cpuCount != nil { parts.append(L10n.text("CPU")) }
+    if changes.memoryMB != nil { parts.append(L10n.text("Memory")) }
+    if changes.display != nil { parts.append(L10n.text("Resolution")) }
+    if changes.diskSizeGB != nil { parts.append(L10n.text("Disk")) }
     if changes.randomMAC { parts.append("MAC") }
-    if changes.randomSerial { parts.append("序列号") }
-    return parts.joined(separator: "、")
+    if changes.randomSerial { parts.append(L10n.text("Serial Number")) }
+    return parts.joined(separator: ", ")
   }
 
   private var maxCPU: Int {
@@ -216,27 +216,27 @@ struct RenameSheet: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 14) {
-      Text("重命名虚拟机").font(.headline)
+      Text(L10n.text("Rename VM")).font(.headline)
 
-      TextField("新名称", text: $newName)
+      TextField(L10n.text("New Name"), text: $newName)
         .textFieldStyle(.roundedBorder)
         .onSubmit { commitIfValid() }
 
       if let issue {
-        Label(issue, systemImage: "exclamationmark.triangle.fill")
+        Label(L10n.text(issue), systemImage: "exclamationmark.triangle.fill")
           .font(.caption)
           .foregroundStyle(.orange)
       } else {
-        Text("该虚拟机的启动配置会一并更名。")
+        Text(L10n.text("The VM's run profiles will be renamed as well."))
           .font(.caption)
           .foregroundStyle(.secondary)
       }
 
       HStack {
         Spacer()
-        Button("取消") { dismiss() }
+        Button(L10n.text("Cancel")) { dismiss() }
           .keyboardShortcut(.cancelAction)
-        Button("重命名") { commitIfValid() }
+        Button(L10n.text("Rename")) { commitIfValid() }
           .keyboardShortcut(.defaultAction)
           .disabled(issue != nil || newName == currentName)
       }
@@ -246,9 +246,9 @@ struct RenameSheet: View {
   }
 
   private var issue: String? {
-    if newName.isEmpty { return "名称不能为空。" }
-    if newName != currentName && existingNames.contains(newName) { return "已经有同名的虚拟机了。" }
-    if newName.contains("/") || newName.contains(":") { return "名称不能包含斜杠或冒号。" }
+    if newName.isEmpty { return "Name cannot be empty." }
+    if newName != currentName && existingNames.contains(newName) { return "A VM with this name already exists." }
+    if newName.contains("/") || newName.contains(":") { return "Names cannot contain slash or colon." }
     return nil
   }
 

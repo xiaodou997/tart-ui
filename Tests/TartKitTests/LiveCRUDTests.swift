@@ -7,20 +7,20 @@ import Testing
 /// **默认不运行。** 需要显式启用：
 ///
 /// ```
-/// TARTPRO_LIVE_CRUD=1 swift test --filter LiveCRUDTests
+/// TARTUI_LIVE_CRUD=1 swift test --filter LiveCRUDTests
 /// ```
 ///
 /// 创建的是空白 Linux 虚拟机，磁盘是稀疏文件，实际占用极小，而且从不启动它。
-/// 名字带随机后缀并以 `tartpro-test-` 开头，避免撞上真实的虚拟机；
+/// 名字带随机后缀并以 `tartui-test-` 开头，避免撞上真实的虚拟机；
 /// 无论测试成败都会在结束时清理。
-@Suite("真实创建与删除", .enabled(if: ProcessInfo.processInfo.environment["TARTPRO_LIVE_CRUD"] == "1"), .serialized)
+@Suite("真实创建与删除", .enabled(if: ProcessInfo.processInfo.environment["TARTUI_LIVE_CRUD"] == "1"), .serialized)
 struct LiveCRUDTests {
   @Test("创建空白 Linux 虚拟机，改配置、重命名，最后删除")
   func fullLifecycle() async throws {
     let client = try TartClient()
     let suffix = UUID().uuidString.prefix(8).lowercased()
-    let originalName = "tartpro-test-\(suffix)"
-    let renamedName = "tartpro-test-renamed-\(suffix)"
+    let originalName = "tartui-test-\(suffix)"
+    let renamedName = "tartui-test-renamed-\(suffix)"
 
     // 兜底清理：无论中途哪一步失败，都不留下测试残骸。
     defer {

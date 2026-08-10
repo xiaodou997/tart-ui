@@ -42,7 +42,7 @@ struct RunProfileEditor: View {
   private var header: some View {
     HStack {
       VStack(alignment: .leading, spacing: 2) {
-        TextField("配置名称", text: $profile.name)
+        TextField(L10n.text("Profile Name"), text: $profile.name)
           .textFieldStyle(.plain)
           .font(.headline)
         Text(vmName)
@@ -61,7 +61,7 @@ struct RunProfileEditor: View {
         VStack(alignment: .leading, spacing: 4) {
           ForEach(warnings) { warning in
             Label {
-              Text(warning.message).font(.caption)
+              Text(L10n.text(warning.message)).font(.caption)
             } icon: {
               Image(systemName: warning.isBlocking
                 ? "exclamationmark.octagon.fill"
@@ -83,9 +83,9 @@ struct RunProfileEditor: View {
 
       HStack {
         Spacer()
-        Button("取消") { dismiss() }
+        Button(L10n.text("Cancel")) { dismiss() }
           .keyboardShortcut(.cancelAction)
-        Button("保存") {
+        Button(L10n.text("Save")) {
           onSave(profile)
           dismiss()
         }
@@ -99,56 +99,56 @@ struct RunProfileEditor: View {
   // MARK: - 分组
 
   private var displaySection: some View {
-    Section("显示与输入") {
-      Toggle("不打开图形窗口", isOn: $profile.noGraphics)
-        .help("适合只通过 SSH 或 VNC 访问的场景")
+    Section(L10n.text("Display and Input")) {
+      Toggle(L10n.text("No Graphics Window"), isOn: $profile.noGraphics)
+        .help(L10n.text("Useful when accessing the VM only through SSH or VNC"))
 
-      Toggle("使用屏幕共享", isOn: $profile.vnc)
-        .help("需要在虚拟机内开启「远程登录」")
+      Toggle(L10n.text("Use Screen Sharing"), isOn: $profile.vnc)
+        .help(L10n.text("Remote Login must be enabled inside the VM"))
 
-      Toggle("使用实验性 VNC", isOn: $profile.vncExperimental)
-        .help("恢复模式和系统安装过程中也可用，但官方标注为实验性")
+      Toggle(L10n.text("Use Experimental VNC"), isOn: $profile.vncExperimental)
+        .help(L10n.text("Available in recovery mode and during installation, but marked experimental by the upstream project"))
 
-      Toggle("系统快捷键发送给虚拟机", isOn: $profile.captureSystemKeys)
-        .help("启用后 Cmd+Tab 等快捷键会被虚拟机接收，而不是宿主机")
+      Toggle(L10n.text("Send System Shortcuts to VM"), isOn: $profile.captureSystemKeys)
+        .help(L10n.text("When enabled, shortcuts such as Cmd+Tab are received by the VM instead of the host"))
 
-      Toggle("禁用触控板", isOn: $profile.noTrackpad)
-      Toggle("禁用指针", isOn: $profile.noPointer)
-      Toggle("禁用键盘", isOn: $profile.noKeyboard)
+      Toggle(L10n.text("Disable Trackpad"), isOn: $profile.noTrackpad)
+      Toggle(L10n.text("Disable Pointer"), isOn: $profile.noPointer)
+      Toggle(L10n.text("Disable Keyboard"), isOn: $profile.noKeyboard)
     }
   }
 
   private var deviceSection: some View {
-    Section("设备") {
-      Toggle("禁用音频", isOn: $profile.noAudio)
-      Toggle("禁用剪贴板共享", isOn: $profile.noClipboard)
+    Section(L10n.text("Devices")) {
+      Toggle(L10n.text("Disable Audio"), isOn: $profile.noAudio)
+      Toggle(L10n.text("Disable Clipboard Sharing"), isOn: $profile.noClipboard)
 
-      Toggle("可挂起", isOn: $profile.suspendable)
-        .help("关闭音频和熵设备，换用 Mac 专用输入设备。只有这样启动的虚拟机才能被挂起")
+      Toggle(L10n.text("Suspendable"), isOn: $profile.suspendable)
+        .help(L10n.text("Disables audio and entropy devices and uses Mac-specific input devices. Only VMs started this way can be suspended"))
 
-      Toggle("启用嵌套虚拟化", isOn: $profile.nested)
-      Toggle("进入恢复模式", isOn: $profile.recovery)
+      Toggle(L10n.text("Enable Nested Virtualization"), isOn: $profile.nested)
+      Toggle(L10n.text("Boot into Recovery Mode"), isOn: $profile.recovery)
     }
   }
 
   private var networkSection: some View {
-    Section("网络") {
-      Picker("网络模式", selection: networkKindBinding) {
-        Text("共享（NAT）").tag(NetworkKind.shared)
-        Text("桥接").tag(NetworkKind.bridged)
+    Section(L10n.text("Network")) {
+      Picker(L10n.text("Network Mode"), selection: networkKindBinding) {
+        Text(L10n.text("Shared (NAT)")).tag(NetworkKind.shared)
+        Text(L10n.text("Bridged")).tag(NetworkKind.bridged)
         Text("Softnet").tag(NetworkKind.softnet)
-        Text("仅宿主机").tag(NetworkKind.hostOnly)
+        Text(L10n.text("Host Only")).tag(NetworkKind.hostOnly)
       }
 
       switch profile.network {
       case .bridged:
-        TextField("接口名", text: bridgeInterfaceBinding, prompt: Text("如 en0 或 Wi-Fi"))
+        TextField(L10n.text("Interface"), text: bridgeInterfaceBinding, prompt: Text(L10n.text("e.g. en0 or Wi-Fi")))
 
       case .softnet:
-        TextField("放行网段", text: softnetAllowBinding, prompt: Text("逗号分隔，如 192.168.0.0/24"))
-        TextField("阻止网段", text: softnetBlockBinding, prompt: Text("逗号分隔"))
-        TextField("端口转发", text: softnetExposeBinding, prompt: Text("如 2222:22,8080:80"))
-          .help("格式为「宿主机端口:虚拟机端口」，多条用逗号分隔")
+        TextField(L10n.text("Allowed Networks"), text: softnetAllowBinding, prompt: Text(L10n.text("Comma-separated, e.g. 192.168.0.0/24")))
+        TextField(L10n.text("Blocked Networks"), text: softnetBlockBinding, prompt: Text(L10n.text("Comma-separated")))
+        TextField(L10n.text("Port Forwards"), text: softnetExposeBinding, prompt: Text(L10n.text("e.g. 2222:22,8080:80")))
+          .help(L10n.text("Format: host-port:guest-port; separate multiple entries with commas"))
 
       case .shared, .hostOnly:
         EmptyView()
@@ -157,33 +157,33 @@ struct RunProfileEditor: View {
   }
 
   private var storageSection: some View {
-    Section("存储与共享") {
+    Section(L10n.text("Storage and Sharing")) {
       ListEditor(
-        title: "附加磁盘",
+        title: L10n.text("Attached Disks"),
         items: $profile.disks,
-        prompt: "路径[:选项]，如 /tmp/data.img:ro"
+        prompt: L10n.text("path[:options], e.g. /tmp/data.img:ro")
       )
 
       ListEditor(
-        title: "目录共享",
+        title: L10n.text("Directory Shares"),
         items: $profile.directoryShares,
-        prompt: "[名称:]路径[:选项]，如 ~/src:ro"
+        prompt: L10n.text("[name:]path[:options], e.g. ~/src:ro")
       )
     }
   }
 
   private var advancedSection: some View {
-    Section("高级") {
-      TextField("根磁盘选项", text: optionalBinding(\.rootDiskOptions),
-                prompt: Text("如 ro 或 caching=cached,sync=none"))
+    Section(L10n.text("Advanced")) {
+      TextField(L10n.text("Root Disk Options"), text: optionalBinding(\.rootDiskOptions),
+                prompt: Text(L10n.text("e.g. ro or caching=cached,sync=none")))
 
-      TextField("Rosetta 标签", text: optionalBinding(\.rosettaTag),
-                prompt: Text("仅对 Linux 客户机有效"))
+      TextField(L10n.text("Rosetta Tag"), text: optionalBinding(\.rosettaTag),
+                prompt: Text(L10n.text("Only applies to Linux guests")))
 
-      Toggle("打开串口控制台", isOn: $profile.serial)
+      Toggle(L10n.text("Open Serial Console"), isOn: $profile.serial)
 
-      TextField("外部串口路径", text: optionalBinding(\.serialPath),
-                prompt: Text("如 /dev/ttys001"))
+      TextField(L10n.text("External Serial Path"), text: optionalBinding(\.serialPath),
+                prompt: Text(L10n.text("e.g. /dev/ttys001")))
     }
   }
 

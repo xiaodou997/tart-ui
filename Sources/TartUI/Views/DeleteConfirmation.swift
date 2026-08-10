@@ -26,7 +26,7 @@ struct DeleteConfirmation: View {
               .lineLimit(1)
               .truncationMode(.middle)
             if runningNames.contains(entry.name) {
-              Text("运行中")
+              Text(L10n.text("Running"))
                 .font(.caption2)
                 .padding(.horizontal, 5)
                 .padding(.vertical, 1)
@@ -34,7 +34,7 @@ struct DeleteConfirmation: View {
                 .foregroundStyle(.orange)
             }
             Spacer()
-            Text("\(entry.allocatedSizeGB) GB")
+            Text(L10n.format("%@ GB", String(entry.allocatedSizeGB)))
               .font(.caption)
               .foregroundStyle(.secondary)
               .monospacedDigit()
@@ -45,12 +45,12 @@ struct DeleteConfirmation: View {
       .frame(maxWidth: .infinity, alignment: .leading)
       .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 6))
 
-      Text("将释放约 \(totalSizeGB) GB 磁盘空间。此操作不可撤销。")
+      Text(L10n.format("About %@ GB of disk space will be freed. This cannot be undone.", String(totalSizeGB)))
         .font(.callout)
 
       if !runningNames.isEmpty {
         Label(
-          "其中有虚拟机正在运行，请先关机再删除。",
+          L10n.text("One or more VMs are still running. Stop them before deleting."),
           systemImage: "exclamationmark.octagon.fill"
         )
         .font(.caption)
@@ -60,7 +60,7 @@ struct DeleteConfirmation: View {
       // 批量删除风险更高，要求手动输入确认，避免顺手点掉。
       if requiresTypedConfirmation {
         VStack(alignment: .leading, spacing: 4) {
-          Text("请输入 **删除** 以确认：")
+          Text(L10n.text("Type DELETE to confirm:"))
             .font(.caption)
           TextField("", text: $typedConfirmation)
             .textFieldStyle(.roundedBorder)
@@ -69,9 +69,9 @@ struct DeleteConfirmation: View {
 
       HStack {
         Spacer()
-        Button("取消") { dismiss() }
+        Button(L10n.text("Cancel")) { dismiss() }
           .keyboardShortcut(.cancelAction)
-        Button("删除") {
+        Button(L10n.text("Delete")) {
           onConfirm()
           dismiss()
         }
@@ -84,7 +84,9 @@ struct DeleteConfirmation: View {
   }
 
   private var title: String {
-    entries.count == 1 ? "删除虚拟机" : "删除 \(entries.count) 台虚拟机"
+    entries.count == 1
+      ? L10n.text("Delete VM")
+      : L10n.format("Delete %@ VMs", String(entries.count))
   }
 
   private var totalSizeGB: Int {
@@ -99,7 +101,7 @@ struct DeleteConfirmation: View {
     // 运行中的虚拟机不能删，tart 也会拒绝。
     guard runningNames.isEmpty else { return false }
     if requiresTypedConfirmation {
-      return typedConfirmation == "删除"
+      return typedConfirmation == "DELETE"
     }
     return true
   }
@@ -159,7 +161,7 @@ private struct OperationRow: View {
           }
           .buttonStyle(.borderless)
         } else {
-          Button("取消", action: onCancel)
+          Button(L10n.text("Cancel"), action: onCancel)
             .buttonStyle(.borderless)
             .font(.caption2)
         }
@@ -183,7 +185,7 @@ private struct OperationRow: View {
       }
 
       if !operation.recentLines.isEmpty {
-        Button("查看日志", action: onShowLog)
+        Button(L10n.text("View Log"), action: onShowLog)
           .buttonStyle(.borderless)
           .font(.caption2)
       }
@@ -250,7 +252,7 @@ struct OperationLogView: View {
             .lineLimit(2)
         }
         Spacer()
-        Button("关闭") { dismiss() }
+        Button(L10n.text("Close")) { dismiss() }
           .keyboardShortcut(.defaultAction)
       }
       .padding()

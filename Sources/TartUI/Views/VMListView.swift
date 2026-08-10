@@ -8,7 +8,7 @@ struct VMListView: View {
   var body: some View {
     List(selection: $selection) {
       if !store.localEntries.isEmpty {
-        Section("本地虚拟机") {
+        Section(L10n.text("Local VMs")) {
           ForEach(store.localEntries) { entry in
             VMRow(entry: entry)
           }
@@ -16,7 +16,7 @@ struct VMListView: View {
       }
 
       if !store.ociEntries.isEmpty {
-        Section("镜像缓存") {
+        Section(L10n.text("Image Cache")) {
           ForEach(store.ociEntries) { entry in
             VMRow(entry: entry)
           }
@@ -26,9 +26,9 @@ struct VMListView: View {
     .overlay {
       if store.entries.isEmpty && !store.isLoading {
         ContentUnavailableView(
-          "还没有虚拟机",
+          L10n.text("No VMs Yet"),
           systemImage: "desktopcomputer",
-          description: Text("从镜像仓库克隆一台，或者新建一台空白虚拟机。")
+          description: Text(L10n.text("Clone one from a registry or create a blank VM."))
         )
       }
     }
@@ -47,7 +47,7 @@ private struct VMRow: View {
           .lineLimit(1)
           .truncationMode(.middle)
 
-        Text("\(entry.allocatedSizeGB) GB / \(entry.diskSizeGB) GB")
+        Text(L10n.format("%@ GB / %@ GB", String(entry.allocatedSizeGB), String(entry.diskSizeGB)))
           .font(.caption)
           .foregroundStyle(.secondary)
       }
@@ -78,10 +78,10 @@ private struct StateIndicator: View {
 
   private var label: String {
     switch state {
-    case .running: "运行中"
-    case .suspended: "已挂起"
-    case .stopped: "已停止"
-    case .unknown: "状态未知"
+    case .running: L10n.text("Running")
+    case .suspended: L10n.text("Suspended")
+    case .stopped: L10n.text("Stopped")
+    case .unknown: L10n.text("Unknown State")
     }
   }
 }

@@ -7,7 +7,7 @@ struct DirectoryWatcherTests {
   /// 建一个临时目录，用完删掉。
   private func makeTempDirectory() throws -> URL {
     let url = URL(fileURLWithPath: NSTemporaryDirectory())
-      .appendingPathComponent("tartpro-watch-\(UUID().uuidString)")
+      .appendingPathComponent("tartui-watch-\(UUID().uuidString)")
     try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
     return url
   }

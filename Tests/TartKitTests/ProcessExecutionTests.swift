@@ -171,7 +171,7 @@ struct StreamingTests {
   func abandoningStreamTerminatesProcess() async throws {
     // 对应用户关掉日志窗口的场景：不能把 tart 留成孤儿进程。
     let marker = URL(fileURLWithPath: NSTemporaryDirectory())
-      .appendingPathComponent("tartpro-orphan-\(UUID().uuidString)")
+      .appendingPathComponent("tartui-orphan-\(UUID().uuidString)")
     defer { try? FileManager.default.removeItem(at: marker) }
 
     let (executor, args) = shell("""

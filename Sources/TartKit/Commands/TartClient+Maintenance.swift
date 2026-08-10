@@ -9,8 +9,8 @@ public enum PruneTarget: String, Sendable, CaseIterable {
 
   public var displayName: String {
     switch self {
-    case .caches: "镜像与安装包缓存"
-    case .vms: "本地虚拟机"
+    case .caches: "Image and Installer Caches"
+    case .vms: "Local VMs"
     }
   }
 
@@ -55,7 +55,7 @@ extension TartClient {
       throw TartError.commandFailed(
         command: ["prune"],
         exitCode: 1,
-        stderr: "必须指定至少一个清理条件。"
+        stderr: "At least one prune criterion is required."
       )
     }
 
@@ -85,7 +85,7 @@ extension TartClient {
       throw TartError.commandFailed(
         command: ["exec", name],
         exitCode: 1,
-        stderr: "没有要执行的命令。"
+        stderr: "No command was provided."
       )
     }
 

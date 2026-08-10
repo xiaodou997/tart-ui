@@ -11,7 +11,7 @@ import Foundation
 public final class DirectoryWatcher: @unchecked Sendable {
   private let url: URL
   private let onChange: @Sendable () -> Void
-  private let queue = DispatchQueue(label: "com.tartpro.directory-watcher")
+  private let queue = DispatchQueue(label: "com.tartui.directory-watcher")
 
   private var source: DispatchSourceFileSystemObject?
   private var descriptor: Int32 = -1

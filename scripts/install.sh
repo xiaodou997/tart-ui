@@ -9,7 +9,7 @@
 
 set -euo pipefail
 
-APP_NAME="TartPro"
+APP_NAME="TartUI"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
@@ -47,7 +47,7 @@ rm -rf "$DEST"
 cp -R "$BUILT_APP" "$DEST"
 
 # 把 .build 里的构建产物从启动服务数据库中注销。
-# 否则系统里存在多个同名应用，`open -a TartPro` 和聚焦搜索可能命中构建目录里
+# 否则系统里存在多个同名应用，`open -a TartUI` 和聚焦搜索可能命中构建目录里
 # 那个临时版本，而不是这里刚装好的。
 LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
 if [ -x "$LSREGISTER" ]; then

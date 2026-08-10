@@ -1,24 +1,23 @@
 import Foundation
 import Observation
-import TartKit
 
-/// 一次虚拟机运行会话。
+/// 一次由 TartUI 管理的虚拟机运行会话。
+///
+/// 会话只保存状态、启动计划和日志；进程的启动与停止由
+/// VMRuntimeCoordinator 负责，显示行为由 VMDisplayDriver 描述。
 @Observable
 @MainActor
-final class RunSession: Identifiable {
+final class VMRuntimeSession: Identifiable {
   enum State: Equatable {
-    /// 已发出启动命令，还没看到任何输出。
     case starting
-    /// 正在运行。
     case running
-    /// 进程已退出。`code` 为 0 表示正常关闭。
+    case stopping
     case exited(code: Int32)
-    /// 启动失败（二进制找不到、参数非法等），带上原因。
-    case failed(reason: String)
+    case failed(VMRuntimeFailure)
 
     var isActive: Bool {
       switch self {
-      case .starting, .running: true
+      case .starting, .running, .stopping: true
       case .exited, .failed: false
       }
     }
@@ -28,49 +27,53 @@ final class RunSession: Identifiable {
   let vmName: String
   let profileName: String
   let startedAt: Date
-  /// 实际执行的完整命令，展示在日志顶部，方便用户复制到终端复现。
-  let commandLine: String
+  let launchPlan: VMRuntimeLaunchPlan
+  let logFileURL: URL?
+
+  var commandLine: String { launchPlan.commandLine }
+  var displayMode: VMDisplayMode { launchPlan.displayMode }
+  var displayDriverOwnsWindow: Bool { displayMode == .nativeWindow }
 
   private(set) var state: State = .starting
   private(set) var endedAt: Date?
-
-  /// 内存中保留的最近日志。
-  ///
-  /// 有上限是必须的：虚拟机可能连续跑几天，全量留在内存里迟早撑爆。
-  /// 完整日志另行写入文件。
   private(set) var recentLines: [LogLine] = []
+
   private let maxRetainedLines = 2000
-
-  /// 完整日志的落盘位置。
-  let logFileURL: URL?
-
   private var logHandle: FileHandle?
 
-  init(vmName: String, profileName: String, commandLine: String, logFileURL: URL?) {
-    self.vmName = vmName
-    self.profileName = profileName
+  init(launchPlan: VMRuntimeLaunchPlan, logFileURL: URL?) {
+    self.vmName = launchPlan.vmName
+    self.profileName = launchPlan.profileName
     self.startedAt = Date()
-    self.commandLine = commandLine
+    self.launchPlan = launchPlan
     self.logFileURL = logFileURL
 
     if let logFileURL {
-      logHandle = Self.openLogFile(at: logFileURL, header: commandLine)
+      logHandle = Self.openLogFile(at: logFileURL, header: launchPlan.commandLine)
     }
   }
 
-  // MARK: - 状态更新
+  // MARK: - 状态
 
   func markRunning() {
-    guard state == .starting else { return }
+    guard state == .starting || state == .stopping else { return }
     state = .running
   }
 
+  func markStopping() {
+    guard state.isActive else { return }
+    state = .stopping
+  }
+
   func append(_ line: String, isError: Bool) {
-    markRunning()
+    // Tart 会在真正显示窗口或网络初始化前输出若干行日志；收到输出只说明
+    // 进程已经启动，不应把 stopping 状态重新改回 running。
+    if state == .starting {
+      state = .running
+    }
 
     let entry = LogLine(text: line, isError: isError)
     recentLines.append(entry)
-    // 超出上限就从头丢弃，保留最近的内容。
     if recentLines.count > maxRetainedLines {
       recentLines.removeFirst(recentLines.count - maxRetainedLines)
     }
@@ -82,17 +85,21 @@ final class RunSession: Identifiable {
     guard state.isActive else { return }
     state = .exited(code: code)
     endedAt = Date()
-    closeLogFile(footer: "进程退出，退出码 \(code)")
+    closeLogFile(footer: L10n.format("Process exited with code %@", String(code)))
   }
 
-  func markFailed(reason: String) {
+  func markFailed(error: any Error) {
+    markFailed(failure: VMRuntimeFailure(error: error))
+  }
+
+  func markFailed(failure: VMRuntimeFailure) {
     guard state.isActive else { return }
-    state = .failed(reason: reason)
+    state = .failed(failure)
     endedAt = Date()
-    closeLogFile(footer: "启动失败：\(reason)")
+    closeLogFile(footer: L10n.format("Start failed: %@", failure.message))
   }
 
-  // MARK: - 日志文件
+  // MARK: - 日志
 
   private static func openLogFile(at url: URL, header: String) -> FileHandle? {
     let fileManager = FileManager.default
@@ -103,11 +110,10 @@ final class RunSession: Identifiable {
       )
       fileManager.createFile(atPath: url.path, contents: nil)
       let handle = try FileHandle(forWritingTo: url)
-      let banner = "$ \(header)\n\n"
-      try handle.write(contentsOf: Data(banner.utf8))
+      try handle.write(contentsOf: Data("$ \(header)\n\n".utf8))
       return handle
     } catch {
-      // 日志写不了不该影响虚拟机启动，降级为只在内存里保留。
+      // 日志写不了不应阻止虚拟机启动，降级为只保留内存日志。
       return nil
     }
   }

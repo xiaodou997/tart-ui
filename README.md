@@ -1,127 +1,182 @@
-# TartPro
+# TartUI
 
-[Tart](https://github.com/openai/tart) 的原生 macOS 图形界面。
+[中文文档](README.zh-CN.md)
 
-Tart 是 Apple Silicon 上基于 `Virtualization.Framework` 的虚拟机工具，功能完整但只有命令行。
-TartPro 给它配一套图形界面，目标是完整覆盖 tart 的所有命令。
+TartUI is a native macOS graphical interface for [Tart](https://github.com/openai/tart), the Apple Silicon virtualization toolset for building, running, and managing macOS and Linux virtual machines.
 
-## 设计原则
+Tart already provides the virtualization engine and a complete CLI. TartUI adds a management dashboard, reusable run profiles, operation logs, and a friendlier workflow. Release builds bundle a pinned Tart runtime, so users do not need to install Tart separately.
 
-**不修改 tart 源码，把它当外部依赖。** TartPro 通过子进程调用 `tart` 命令行，
-用它原生的 `--format json` 输出取回结构化数据。这样上游 `brew upgrade tart` 可以直接受益，
-不用维护 fork，也避免了虚拟化 entitlement 的签名问题——那属于 tart 二进制，与本 App 无关。
+## What it does
 
-**GUI 的增值点是 Run Profile。** `tart run` 有 26 个选项，但 tart 的 `config.json`
-只持久化 6 个字段（CPU、内存、显示、MAC、磁盘格式等）。也就是说命令行用户每次启动
-都得重敲一长串参数。TartPro 把启动参数存成每台虚拟机的命名配置，一键启动。
+- List local VMs and OCI image caches, including state and disk usage.
+- Start, stop, suspend, and resume VMs.
+- Create macOS VMs from IPSW files or create blank Linux VMs.
+- Clone, configure, rename, delete, import, and export VMs.
+- Pull from and push to OCI registries, including login and logout.
+- Look up VM IP addresses and run non-interactive commands through `tart-guest-agent`.
+- Preview and run cache or VM pruning operations.
+- Save named run profiles for display, devices, storage, sharing, networking, and advanced `tart run` options.
 
-**虚拟机画面沿用 tart 自带窗口。** `tart run` 本身会开一个原生的
-`Virtualization.Framework` 窗口，性能最好。TartPro 只做管理面板，不做 VNC 内嵌。
+The VM display is still provided by Tart's native `Virtualization.Framework` window. TartUI is the management layer; it does not embed a VNC viewer or implement virtualization itself.
 
-## 架构
+## Architecture
 
+```text
+TartUI App (the only user-facing app and Dock icon)
+    ↓
+VMStore
+    ↓
+VMRuntimeCoordinator
+    ├── VMRuntimeSession (state + logs)
+    ├── VMDisplayDriver (native window today, embedded VNC later)
+    └── VMRuntimeService
+    ↓
+TartKit (UI-independent command wrapper)
+    ↓
+TartRuntime (bundled → managed → external)
+    ↓
+the Tart helper Agent process
 ```
-UI 层 (SwiftUI)          VMListView / SetupGuideView / ...
-ViewModel 层 (@Observable) VMStore / RunSessionManager
-Domain 层                 VMListEntry / VMDetails / RunProfile
-TartKit（核心）            TartClient / TartExecutor / TartLocator
-        ↓ Process + Pipe
-   /opt/homebrew/bin/tart
-```
 
-`TartKit` 是不依赖任何 UI 代码的独立 target，可以脱离界面单独测试。
+TartUI keeps Tart as an independent executable and consumes its JSON output. Tart is compiled from a pinned Git submodule and placed inside `TartUI.app/Contents/Helpers/tart.app`. The helper remains a separate process so the upstream runtime can be updated without an in-process rewrite.
 
-## 环境要求
+The bundled helper is built as a macOS Agent, so the user sees one App and one Dock icon even though the VM runtime remains a separate process. Tart currently forces a regular activation policy for its native window; `Resources/tart-agent.patch` is therefore applied only during helper compilation and automatically reverted afterward. It is intentionally kept as a small, fail-fast integration boundary: if an upstream Tart update changes that lifecycle code, the build stops and the patch must be reviewed instead of silently bringing back a second Dock icon.
 
-- macOS 14.0 或更高
+## Requirements
+
+- macOS 14.0 or later
 - Apple Silicon
-- 已安装 tart：`brew install openai/tools/tart`
+- An internet connection when installing or updating the managed fallback runtime
 
-## 安装
+## Install
+
+Release builds include the pinned Tart runtime. Build a signed release app and install it into Applications:
 
 ```bash
 ./scripts/install.sh
 ```
 
-构建 release 版本并装到「应用程序」文件夹，之后就是一个普通的 macOS 应用：
-启动台、聚焦搜索（Cmd+空格）都能找到，也可以拖进程序坞常驻。
+The script builds the Tart submodule, signs the helper with the project-owned virtualization entitlements, signs the outer App, and uses a Developer ID certificate when available. It falls back to an ad-hoc signature suitable for local use. Distribution requires Developer ID signing and notarization.
 
-## 开发
+For an already-built release distributed by the project, users only need to open `TartUI.app`. If the bundled runtime is missing, TartUI can download the official latest Tart release into its managed fallback directory without modifying Homebrew or shell configuration. The bundled runtime remains preferred so the Agent integration and single-Dock-icon behavior stay intact; bundled Tart updates are delivered through the pinned submodule and the scheduled update workflow.
 
-```bash
-swift test              # 运行测试
-./scripts/bundle.sh     # 只打包 debug 版，不安装
-```
+## Development
 
-注意必须打包成 `.app` 再运行。SwiftUI 的 `WindowGroup` 需要真实的 bundle
-（含 Info.plist）才能创建窗口，直接 `swift run` 得到的裸可执行文件会启动后立刻退出。
-
-## 换图标
+Run the unit and integration test suite:
 
 ```bash
-./scripts/set-icon.sh 你的图.png    # 自动裁成正方形、加圆角、留白
-./scripts/set-icon.sh --raw 成品.png  # 图已经做好了，跳过处理
-./scripts/install.sh                # 应用新图标
+swift test
 ```
 
-图标源文件是 `Resources/icon.png`，打包时自动转成 `.icns`。
+Initialize the read-only Tart source and inspect the pinned version:
 
-## 代码签名
+```bash
+git submodule update --init --recursive
+git -C Vendor/tart log -1 --oneline
+```
 
-`scripts/lib.sh` 会自动挑选签名身份：有 **Developer ID Application** 证书就用它，
-否则用临时签名（ad-hoc）。本机自用临时签名完全够。
+Build a debug `.app` without installing it:
 
-**Apple Development 和 Apple Distribution 证书被刻意跳过。** 它们签出来的应用需要
-配套的描述文件（`embedded.provisionprofile`）才能启动，直接拿来打包会让 launchd
-拒绝加载，报 `Launch failed`（错误 163）。那两张证书是给 Xcode 完整签名流程用的。
+```bash
+./scripts/bundle.sh
+```
 
-要分发给别人，需要在开发者后台申请 Developer ID Application 证书，装好后本脚本
-会自动选用；随后还应做公证（`xcrun notarytool`），否则对方下载打开会被 Gatekeeper 拦。
-手动指定身份用 `TARTPRO_SIGN_IDENTITY=<名称或指纹> ./scripts/install.sh`。
+The script uses `Vendor/tart` first and the sibling `../tart` checkout as a development fallback. When building from source, it temporarily applies the Agent integration patch and restores the checkout after compilation. To use another checkout or an existing binary:
 
-## 测试
+```bash
+TARTUI_TART_SOURCE_DIR=/path/to/tart ./scripts/bundle.sh debug
+TARTUI_TART_BINARY=/path/to/tart ./scripts/bundle.sh debug
+```
 
-- **单元测试**用 mock 的执行器，验证命令参数拼装和 JSON 解码，不需要装 tart。
-- **集成测试**跑真实的 tart 二进制，验证解码器和上游实际输出一致。只包含只读命令
-  （`list` / `get` / `--version`），不会创建、修改或删除任何虚拟机。
-  没装 tart 的机器上自动跳过。
-- **live 测试**有副作用，默认不跑，需显式开启：
+An externally supplied prebuilt Tart binary cannot receive the TartUI Agent integration patch. Use the bundled source build for the single-Dock-icon experience; external Tart remains a supported diagnostic fallback.
+
+To use an Apple Development identity and the Tart helper provisioning profile downloaded by Xcode:
+
+```bash
+TARTUI_SIGN_IDENTITY=<Apple-Development-SHA1> \
+TARTUI_TART_PROVISION_PROFILE=/path/to/TartUI-Tart-Helper-Development.provisionprofile \
+./scripts/bundle.sh debug
+```
+
+The bundler can also find a matching profile in Xcode's local profile cache. The profile is never committed to the repository. On macOS 26, Apple's portal VMNet capability grants `com.apple.developer.networking.vmnet`. Tart's current `--net-bridged` implementation uses the separately restricted `com.apple.vm.networking` entitlement, so Shared (NAT) is the supported network mode until Apple grants that restricted entitlement.
+
+To create a notarized DMG, first store a notarytool profile in your login keychain and then run:
+
+```bash
+TARTUI_VERSION=0.1.0 \
+TARTUI_NOTARY_PROFILE=tartui \
+./scripts/release.sh
+```
+
+Signing certificates and notarization credentials must stay in the local keychain or CI secrets; they are never committed to this repository.
+
+Run the resulting app with:
+
+```bash
+open .build/arm64-apple-macosx/debug/TartUI.app
+```
+
+The app should be run as a real `.app` bundle. A bare `swift run` executable does not have the bundle metadata needed by SwiftUI's `WindowGroup`.
+
+### Updating Tart
+
+Tart is kept as a pinned submodule so an upstream change is never picked up silently. Update it locally with:
+
+```bash
+./scripts/update-tart.sh
+```
+
+The scheduled GitHub Actions workflow runs this check weekly and opens a pull request when a new stable Tart tag is available. The PR must pass TartUI tests and packaging checks before it is merged and released.
+
+## Localization
+
+English is the development and default language. Simplified Chinese is included as `zh-Hans`.
+
+Localized UI resources live under:
+
+```text
+Sources/TartUI/Resources/en.lproj/Localizable.strings
+Sources/TartUI/Resources/zh-Hans.lproj/Localizable.strings
+```
+
+To add another language, create a new `<language>.lproj/Localizable.strings` directory and add its locale to the app bundle metadata in `scripts/bundle.sh`. Keep the English key as the source-of-truth key and add the translated value in the new string table.
+
+## Data and compatibility
+
+Run profiles are stored at:
+
+```text
+~/Library/Application Support/TartUI/run-profiles.json
+```
+
+TartUI automatically reads the previous `TartPro` profile directory and binary-path preference, then writes new changes to the `TartUI` locations. Existing VM data under Tart's own home directory is not moved or modified.
+
+Runtime logs are stored under:
+
+```text
+~/Library/Logs/TartUI
+```
+
+## Licensing and attribution
+
+TartUI uses the Functional Source License, Version 1.1, ALv2 Future License. Tart and its dependencies retain their original licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and the unmodified license at `Vendor/tart/LICENSE`.
+
+TartUI is an independent community UI for Tart. It is not affiliated with or endorsed by OpenAI.
+
+## Testing strategy
+
+- Unit tests use a mock executor for command construction and JSON decoding.
+- Integration tests use the real Tart binary but only run read-only commands.
+- Live VM tests are opt-in because they start, stop, create, rename, and delete real VMs:
 
   ```bash
-  # 真实启停一台已有的虚拟机（无图形模式，约 80 秒）
-  TARTPRO_LIVE_VM=<虚拟机名> swift test --filter LiveVMTests
-
-  # 真实走一遍创建 → 改配置 → 重命名 → 删除（用完即清）
-  TARTPRO_LIVE_CRUD=1 swift test --filter LiveCRUDTests
+  TARTUI_LIVE_VM=<vm-name> swift test --filter LiveVMTests
+  TARTUI_LIVE_CRUD=1 swift test --filter LiveCRUDTests
   ```
 
-## 已知的坑
+## Known limitations
 
-这几条是实测踩出来的，改代码时注意：
-
-1. **PATH。** 从 Finder 启动的 `.app` 继承的是 launchd 的最小 PATH，拿不到
-   `/opt/homebrew/bin`。所以不能靠 `which tart`，必须显式探测路径。见 `TartLocator`。
-2. **管道死锁。** 先 `waitUntilExit()` 再读管道，会在输出超过管道缓冲区（约 64KB）时死锁。
-   必须并发读 stdout 和 stderr。`tart pull` 的输出远超这个量。见 `ProcessHandle`。
-3. **schema 不一致。** 同名的 `Size` 字段，`tart list` 返回整数 GB，`tart get`
-   返回字符串小数（如 `"31.057"`）。两者必须分开建模。
-4. **窗口默认尺寸。** `.frame(minWidth:)` 只是下限，不决定初始尺寸，
-   要用 `.defaultSize()`，否则窗口会缩到内容的固有大小。
-5. **密码只能走 stdin。** `tart login` 用 `--password-stdin`。把密码放进命令行参数
-   会让它出现在 `ps` 输出里，同机任何进程都读得到。见 `TartClient+Registry`。
-6. **prune 没有 dry-run。** 命令一执行就真的删。`PrunePlanner` 复刻了 tart 的
-   选择逻辑做预览，但看不到 IPSW 缓存（`tart list` 不列它），界面上必须标明预览不完整。
-
-## 进度
-
-- [x] TartKit 地基：二进制定位、进程执行、JSON 解码、错误处理
-- [x] 只读界面：虚拟机列表、状态同步
-- [x] 生命周期：run / stop / suspend + Run Profile 编辑器 + 会话日志
-- [x] 创建与配置：create / clone / set / rename / delete
-- [x] 镜像仓库：pull / push / login / logout
-- [x] 导入导出、prune、ip
-- [x] exec（非交互式）
-- [x] 状态自动同步（轮询 + 目录监听）
-- [x] 设置：手动指定 tart 路径
-
-至此已覆盖 tart 的全部命令。
+- Tart's VM display is still provided by its native Virtualization Framework window; the display-driver boundary is ready for a future embedded VNC implementation.
+- `exec` requires `tart-guest-agent` inside the guest.
+- Tart's `prune` command has no dry-run mode. The cache preview cannot see IPSW installer caches.
+- Quitting TartUI does not stop running VMs; they continue in the background after confirmation.

@@ -7,6 +7,8 @@ import SwiftUI
 /// 与其静默失败，不如把原因和处理办法直接说清楚。
 struct SetupGuideView: View {
   let message: String
+  let isInstalling: Bool
+  let onInstall: () -> Void
   let onRetry: () -> Void
 
   var body: some View {
@@ -15,7 +17,7 @@ struct SetupGuideView: View {
         .font(.system(size: 40))
         .foregroundStyle(.orange)
 
-      Text("找不到 tart")
+      Text(L10n.text("tart Not Found"))
         .font(.title2.weight(.semibold))
 
       Text(message)
@@ -24,9 +26,28 @@ struct SetupGuideView: View {
         .multilineTextAlignment(.center)
         .textSelection(.enabled)
 
+      Text(L10n.text("TartUI can install the official Tart runtime for you."))
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .multilineTextAlignment(.center)
+
+      Button {
+        onInstall()
+      } label: {
+        if isInstalling {
+          ProgressView()
+            .controlSize(.small)
+          Text(L10n.text("Installing Tart…"))
+        } else {
+          Label(L10n.text("Install Tart Runtime"), systemImage: "arrow.down.circle")
+        }
+      }
+      .buttonStyle(.borderedProminent)
+      .disabled(isInstalling)
+
       GroupBox {
         VStack(alignment: .leading, spacing: 8) {
-          Text("如果还没安装，在终端里执行：")
+          Text(L10n.text("Advanced: install with Homebrew"))
             .font(.caption)
             .foregroundStyle(.secondary)
 
@@ -39,12 +60,13 @@ struct SetupGuideView: View {
       }
 
       HStack {
-        Button("打开设置…") {
+        Button(L10n.text("Open Settings…")) {
           // 装在非标准位置时，用户需要在设置里手动指路。
           NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
         }
-        Button("重新检测", action: onRetry)
+        Button(L10n.text("Check Again"), action: onRetry)
           .keyboardShortcut(.defaultAction)
+          .disabled(isInstalling)
       }
     }
     .padding(32)

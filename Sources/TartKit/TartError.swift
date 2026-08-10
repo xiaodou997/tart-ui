@@ -31,21 +31,21 @@ extension TartError: LocalizedError {
   public var errorDescription: String? {
     switch self {
     case let .binaryNotFound(searchedPaths):
-      return "没有找到 tart 可执行文件。已查找：\(searchedPaths.joined(separator: "、"))"
+      return "Could not find the tart executable. Searched: \(searchedPaths.joined(separator: ", "))"
     case let .binaryNotExecutable(path):
-      return "\(path) 存在但不可执行。"
+      return "\(path) exists but is not executable."
     case let .unsupportedVersion(found, minimum):
-      return "tart 版本过低：当前 \(found)，需要 \(minimum) 或更高。"
+      return "The tart version is too old: found \(found), but \(minimum) or newer is required."
     case let .launchFailed(underlying):
-      return "无法启动 tart：\(underlying.localizedDescription)"
+      return "Could not launch tart: \(underlying.localizedDescription)"
     case let .commandFailed(command, exitCode, stderr):
       let detail = stderr.trimmingCharacters(in: .whitespacesAndNewlines)
       let suffix = detail.isEmpty ? "" : "\n\(detail)"
-      return "命令 `tart \(command.joined(separator: " "))` 失败（退出码 \(exitCode)）\(suffix)"
+      return "Command `tart \(command.joined(separator: " "))` failed (exit code \(exitCode))\(suffix)"
     case let .decodingFailed(command, _, underlying):
-      return "无法解析 `tart \(command.joined(separator: " "))` 的输出：\(underlying.localizedDescription)"
+      return "Could not decode the output of `tart \(command.joined(separator: " "))`: \(underlying.localizedDescription)"
     case let .cancelled(command):
-      return "命令 `tart \(command.joined(separator: " "))` 已取消。"
+      return "Command `tart \(command.joined(separator: " "))` was cancelled."
     }
   }
 }

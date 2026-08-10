@@ -273,6 +273,21 @@ struct LocatorTests {
     #expect(try locator.locate().path == "/opt/homebrew/bin/tart")
   }
 
+  @Test("内置 runtime 优先于系统安装")
+  func prefersBundledRuntime() throws {
+    let locator = TartLocator(
+      searchPaths: ["/system/tart"],
+      pathEnvironment: nil,
+      isExecutableFile: { _ in true },
+      bundledPaths: ["/bundle/Helpers/tart"],
+      managedPaths: []
+    )
+
+    let runtime = try locator.resolve()
+    #expect(runtime.binaryURL.path == "/bundle/Helpers/tart")
+    #expect(runtime.source == .bundled)
+  }
+
   @Test("已知位置都落空时回退到 PATH")
   func fallsBackToPathEnvironment() throws {
     // 从终端启动时走这条路径。

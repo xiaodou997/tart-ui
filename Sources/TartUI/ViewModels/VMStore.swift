@@ -12,10 +12,18 @@ final class VMStore {
 
   /// tart 不可用时为 nil，界面据此显示引导页。
   private(set) var client: TartClient?
+  private(set) var runtime: TartRuntime?
   private(set) var tartVersion: String?
+  private(set) var isInstallingRuntime = false
+  private(set) var runtimeInstallError: String?
 
-  /// 由 TartPro 启动的虚拟机进程。tart 可用后才会建立。
-  private(set) var sessions: RunSessionManager?
+  var runtimeSource: TartRuntimeSource? { runtime?.source }
+
+  /// 由 TartUI 启动的虚拟机进程。tart 可用后才会建立。
+  ///
+  /// 会话协调器是 UI 与 Tart runtime 之间唯一的生命周期边界；视图不直接
+  /// 持有或启动 Foundation.Process。
+  private(set) var runtimeSessions: VMRuntimeCoordinator?
 
   /// 创建、克隆这类长时操作。
   let operations = OperationCenter()
@@ -35,12 +43,24 @@ final class VMStore {
   // MARK: - 启动自检
 
   func bootstrap(userOverride: String? = nil) async {
+    if let runtimeSessions, !runtimeSessions.activeVMNames.isEmpty {
+      actionError = L10n.text("Stop all running VMs before changing the Tart runtime.")
+      return
+    }
+
     do {
-      let client = try TartClient(userOverride: userOverride)
+      let runtime = try TartLocator().resolve(userOverride: userOverride)
+      let client = TartClient(
+        runtime: runtime,
+        environment: TartRuntimeEnvironment.make()
+      )
       self.tartVersion = try await client.version()
+      self.runtime = runtime
       self.client = client
-      self.sessions = RunSessionManager(client: client)
+      let runtimeService = TartVMRuntimeService(runtime: runtime, client: client)
+      self.runtimeSessions = VMRuntimeCoordinator(runtime: runtimeService)
       self.loadError = nil
+      self.runtimeInstallError = nil
 
       loadProfiles()
       await refresh()
@@ -49,8 +69,34 @@ final class VMStore {
     } catch {
       // 定位失败不是「加载出错」，而是「还没配好」，界面应给出安装/指路引导。
       self.client = nil
-      self.sessions = nil
+      self.runtime = nil
+      self.tartVersion = nil
+      self.runtimeSessions = nil
       self.loadError = error.localizedDescription
+    }
+  }
+
+  /// 下载并启用官方最新 Tart runtime，然后重新加载整个应用状态。
+  ///
+  /// 运行时安装在 TartUI 的 Application Support 目录，不会覆盖 App bundle，
+  /// 因此正式签名的 App 更新和用户自行更新 runtime 可以并存。
+  func installLatestRuntime() async {
+    guard !isInstallingRuntime else { return }
+    guard runtimeSessions?.activeVMNames.isEmpty ?? true else {
+      runtimeInstallError = L10n.text("Stop all running VMs before updating Tart.")
+      return
+    }
+
+    isInstallingRuntime = true
+    runtimeInstallError = nil
+    defer { isInstallingRuntime = false }
+
+    do {
+      _ = try await TartRuntimeInstaller().installLatest()
+      await bootstrap()
+    } catch {
+      runtimeInstallError = error.localizedDescription
+      loadError = error.localizedDescription
     }
   }
 
@@ -144,7 +190,7 @@ final class VMStore {
       // 配置读不出来不该挡住整个应用，退回空集合，用户重新配置即可。
       profileStore = try? RunProfileStore()
       profiles = ProfileCollection()
-      actionError = "启动配置读取失败，已重置：\(error.localizedDescription)"
+      actionError = L10n.format("Failed to read run profiles; they were reset: %@", error.localizedDescription)
     }
   }
 
@@ -167,22 +213,22 @@ final class VMStore {
     do {
       try profileStore.save(profiles)
     } catch {
-      actionError = "启动配置保存失败：\(error.localizedDescription)"
+      actionError = L10n.format("Failed to save run profiles: %@", error.localizedDescription)
     }
   }
 
   // MARK: - 生命周期操作
 
   func start(vmName: String, profile: RunProfile) {
-    guard let sessions else { return }
+    guard let runtimeSessions else { return }
 
     if profile.hasBlockingIssues {
       // 有阻断性问题时不该白跑一趟让 tart 报错。
-      actionError = "启动配置有冲突，请先修正后再启动。"
+      actionError = L10n.text("The run profile has conflicts. Fix them before starting.")
       return
     }
 
-    sessions.start(vmName: vmName, profile: profile)
+    runtimeSessions.start(vmName: vmName, profile: profile)
 
     // tart run 要过一会儿才会把状态写进虚拟机目录，延迟刷新一次。
     Task {
@@ -192,9 +238,9 @@ final class VMStore {
   }
 
   func stop(vmName: String) async {
-    guard let sessions else { return }
+    guard let runtimeSessions else { return }
     do {
-      try await sessions.stop(vmName: vmName)
+      try await runtimeSessions.stop(vmName: vmName)
       await refresh()
     } catch {
       actionError = error.localizedDescription
@@ -202,9 +248,9 @@ final class VMStore {
   }
 
   func suspend(vmName: String) async {
-    guard let sessions else { return }
+    guard let runtimeSessions else { return }
     do {
-      try await sessions.suspend(vmName: vmName)
+      try await runtimeSessions.suspend(vmName: vmName)
       await refresh()
     } catch {
       // 未以 --suspendable 启动的虚拟机会走到这里，tart 的报错已经说清了原因。
@@ -212,12 +258,12 @@ final class VMStore {
     }
   }
 
-  /// TartPro 是否掌握着这台虚拟机的进程。
+  /// TartUI 是否掌握着这台虚拟机的进程。
   ///
   /// 用户可能在终端里直接 `tart run`，那样的虚拟机同样显示为运行中，
-  /// 但 TartPro 拿不到它的进程句柄，只能请求关机、不能强制结束。
+  /// 但 TartUI 拿不到它的进程句柄，只能请求关机、不能强制结束。
   func isManagedByApp(_ vmName: String) -> Bool {
-    sessions?.isManaged(vmName) ?? false
+    runtimeSessions?.isManaged(vmName) ?? false
   }
 
   // MARK: - 创建与克隆
@@ -232,8 +278,8 @@ final class VMStore {
 
     let title: String
     switch source {
-    case .linux: title = "创建 Linux 虚拟机「\(name)」"
-    case .macOSFromIPSW: title = "创建 macOS 虚拟机「\(name)」"
+    case .linux: title = L10n.format("Create Linux VM \"%@\"", name)
+    case .macOSFromIPSW: title = L10n.format("Create macOS VM \"%@\"", name)
     }
 
     operations.run(
@@ -247,7 +293,7 @@ final class VMStore {
     guard let client else { return }
 
     operations.run(
-      title: "克隆「\(source)」→「\(newName)」",
+      title: L10n.format("Clone \"%@\" → \"%@\"", source, newName),
       stream: { client.clone(source: source, newName: newName, insecure: insecure, concurrency: concurrency) },
       onSuccess: { [weak self] in await self?.refresh() }
     )
@@ -317,7 +363,7 @@ final class VMStore {
     guard let client else { return }
 
     operations.run(
-      title: "拉取「\(reference)」",
+      title: L10n.format("Pull \"%@\"", reference),
       stream: { client.pull(remoteName: reference, insecure: insecure, concurrency: concurrency) },
       onSuccess: { [weak self] in await self?.refresh() }
     )
@@ -334,9 +380,11 @@ final class VMStore {
   ) {
     guard let client else { return }
 
-    let target = remoteNames.count == 1 ? remoteNames[0] : "\(remoteNames.count) 个目标"
+    let target = remoteNames.count == 1
+      ? remoteNames[0]
+      : L10n.format("%@ targets", String(remoteNames.count))
     operations.run(
-      title: "推送「\(localName)」→ \(target)",
+      title: L10n.format("Push \"%@\" → %@", localName, target),
       stream: {
         client.push(
           localName: localName,
@@ -362,7 +410,7 @@ final class VMStore {
     insecure: Bool,
     validate: Bool
   ) async -> String? {
-    guard let client else { return "tart 不可用。" }
+    guard let client else { return L10n.text("tart is unavailable.") }
     do {
       try await client.login(
         host: host, username: username, password: password,
@@ -375,7 +423,7 @@ final class VMStore {
   }
 
   func logout(host: String) async -> String? {
-    guard let client else { return "tart 不可用。" }
+    guard let client else { return L10n.text("tart is unavailable.") }
     do {
       try await client.logout(host: host)
       return nil
@@ -390,7 +438,7 @@ final class VMStore {
     guard let client else { return }
 
     operations.run(
-      title: "导出「\(name)」",
+      title: L10n.format("Export \"%@\"", name),
       stream: { client.export(name: name, to: path) }
     )
   }
@@ -399,7 +447,7 @@ final class VMStore {
     guard let client else { return }
 
     operations.run(
-      title: "导入「\(name)」",
+      title: L10n.format("Import \"%@\"", name),
       stream: { client.importVM(from: path, name: name) },
       onSuccess: { [weak self] in await self?.refresh() }
     )

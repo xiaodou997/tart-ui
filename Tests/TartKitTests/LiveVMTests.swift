@@ -8,7 +8,7 @@ import Testing
 /// 不该混在常规测试里。需要显式指定环境变量才会执行：
 ///
 /// ```
-/// TARTPRO_LIVE_VM=sequoia swift test --filter LiveVMTests
+/// TARTUI_LIVE_VM=sequoia swift test --filter LiveVMTests
 /// ```
 ///
 /// 故意不设默认虚拟机名——否则一次手滑就可能动到别人的虚拟机。
@@ -101,7 +101,7 @@ struct LiveVMTests {
 
 enum LiveVMConfig {
   static var vmName: String? {
-    guard let name = ProcessInfo.processInfo.environment["TARTPRO_LIVE_VM"],
+    guard let name = ProcessInfo.processInfo.environment["TARTUI_LIVE_VM"],
           !name.isEmpty else { return nil }
     return name
   }

@@ -107,7 +107,7 @@ final class OperationCenter {
         } else {
           // 失败原因通常就在最后几行输出里。
           let tail = operation.recentLines.suffix(3).joined(separator: "\n")
-          operation.finish(state: .failed(reason: tail.isEmpty ? "退出码 \(exitCode)" : tail))
+          operation.finish(state: .failed(reason: tail.isEmpty ? L10n.format("Exit code %@", String(exitCode)) : tail))
         }
       } catch {
         operation.finish(state: .failed(reason: error.localizedDescription))

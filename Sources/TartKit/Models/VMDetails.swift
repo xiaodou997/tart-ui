@@ -17,7 +17,7 @@ public struct DisplayResolution: Codable, Sendable, Hashable, CustomStringConver
     guard let parsed = DisplayResolution(parsing: raw) else {
       throw DecodingError.dataCorrupted(.init(
         codingPath: decoder.codingPath,
-        debugDescription: "无法解析分辨率 '\(raw)'，期望 <宽>x<高> 格式"
+        debugDescription: "Could not parse resolution '\(raw)'; expected <width>x<height>"
       ))
     }
     self = parsed
@@ -90,7 +90,7 @@ public struct VMDetails: Codable, Sendable, Hashable {
     guard let size = Double(rawSize) else {
       throw DecodingError.dataCorrupted(.init(
         codingPath: container.codingPath + [CodingKeys.allocatedSizeGB],
-        debugDescription: "无法把 '\(rawSize)' 解析为占用空间数值"
+        debugDescription: "Could not parse allocated size '\(rawSize)' as a number"
       ))
     }
     allocatedSizeGB = size

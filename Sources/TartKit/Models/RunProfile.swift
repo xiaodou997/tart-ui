@@ -2,9 +2,9 @@ import Foundation
 
 /// 一份具名的启动配置。
 ///
-/// 这是 TartPro 相对命令行的主要增值点：`tart run` 有二十多个选项，
+/// 这是 TartUI 相对命令行的主要增值点：`tart run` 有二十多个选项，
 /// 但 tart 的 `config.json` 只持久化 CPU、内存、显示等六个字段。
-/// 命令行用户每次启动都得重敲一长串参数，TartPro 把它们存下来复用。
+/// 命令行用户每次启动都得重敲一长串参数，TartUI 把它们存下来复用。
 ///
 /// 一台虚拟机可以有多份 profile（如「日常开发」「无图形跑测试」）。
 public struct RunProfile: Codable, Sendable, Hashable, Identifiable {
@@ -57,7 +57,7 @@ public struct RunProfile: Codable, Sendable, Hashable, Identifiable {
 
   public init(
     id: UUID = UUID(),
-    name: String = "默认",
+    name: String = "Default",
     noGraphics: Bool = false,
     vnc: Bool = false,
     vncExperimental: Bool = false,
@@ -202,28 +202,28 @@ extension RunProfile {
 
     if vnc && vncExperimental {
       warnings.append(Warning(
-        message: "「屏幕共享」和「实验性 VNC」不能同时启用，请只选一种。",
+        message: "Screen Sharing and Experimental VNC cannot be enabled together. Choose one.",
         isBlocking: true
       ))
     }
 
     if noGraphics && !vnc && !vncExperimental {
       warnings.append(Warning(
-        message: "已关闭图形窗口且未启用 VNC，将无法看到虚拟机画面，只能通过 SSH 访问。",
+        message: "The graphics window is disabled and no VNC mode is enabled; the VM will only be accessible through SSH.",
         isBlocking: false
       ))
     }
 
     if suspendable && noAudio {
       warnings.append(Warning(
-        message: "「可挂起」本身就会关闭音频设备，无需再单独关闭音频。",
+        message: "Suspendable already disables audio; disabling audio separately is unnecessary.",
         isBlocking: false
       ))
     }
 
     if recovery && suspendable {
       warnings.append(Warning(
-        message: "恢复模式下无法挂起虚拟机。",
+        message: "The VM cannot be suspended in recovery mode.",
         isBlocking: false
       ))
     }
@@ -232,7 +232,7 @@ extension RunProfile {
       for port in options.exposedPorts {
         if !(1...65535).contains(port.hostPort) || !(1...65535).contains(port.guestPort) {
           warnings.append(Warning(
-            message: "端口 \(port.argumentValue) 超出有效范围 1–65535。",
+            message: "Port \(port.argumentValue) is outside the valid range 1–65535.",
             isBlocking: true
           ))
         }
@@ -240,7 +240,7 @@ extension RunProfile {
       // 端口转发要能从外部访问，通常还需要放行对应网段，否则 Softnet 的默认策略会拦掉。
       if !options.exposedPorts.isEmpty && options.allowedCIDRs.isEmpty {
         warnings.append(Warning(
-          message: "配置了端口转发但未放行任何网段，Softnet 的默认限制可能导致外部无法连接。",
+          message: "Port forwarding is configured without allowed networks; Softnet's default restrictions may block external connections.",
           isBlocking: false
         ))
       }
@@ -248,7 +248,7 @@ extension RunProfile {
 
     if serial && serialPath != nil {
       warnings.append(Warning(
-        message: "「打开串口控制台」与「附加外部串口」是两种方式，同时设置可能不生效。",
+        message: "Open Serial Console and External Serial Path are alternative modes; enabling both may not work as expected.",
         isBlocking: false
       ))
     }

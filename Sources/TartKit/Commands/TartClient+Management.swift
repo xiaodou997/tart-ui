@@ -8,8 +8,8 @@ public enum DiskFormat: String, Sendable, CaseIterable, Codable {
 
   public var displayName: String {
     switch self {
-    case .raw: "RAW（通用）"
-    case .asif: "ASIF（更快，需 macOS 26+）"
+    case .raw: "RAW (Universal)"
+    case .asif: "ASIF (Faster, macOS 26+)"
     }
   }
 }
@@ -164,7 +164,7 @@ public enum DiskResizeValidation {
   /// tart 只允许增大磁盘。与其让用户填完再看报错，不如在界面上直接拦住。
   public static func validate(currentGB: Int, targetGB: Int) -> String? {
     if targetGB < currentGB {
-      return "磁盘只能扩大，不能缩小到 \(targetGB) GB（当前 \(currentGB) GB）。缩小会导致数据丢失。"
+      return "The disk can only grow, not shrink to \(targetGB) GB (current size: \(currentGB) GB). Shrinking can cause data loss."
     }
     if targetGB == currentGB {
       return nil

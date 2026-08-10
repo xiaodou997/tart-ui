@@ -22,7 +22,7 @@ struct PullImageSheet: View {
 
   var body: some View {
     VStack(spacing: 0) {
-      Text("拉取镜像")
+      Text(L10n.text("Pull Image"))
         .font(.headline)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
@@ -30,13 +30,13 @@ struct PullImageSheet: View {
       Divider()
 
       Form {
-        Section("镜像引用") {
-          TextField("引用", text: $reference, prompt: Text("如 ghcr.io/cirruslabs/ubuntu:latest"))
+        Section(L10n.text("Image Reference")) {
+          TextField(L10n.text("Reference"), text: $reference, prompt: Text(L10n.text("e.g. ghcr.io/cirruslabs/ubuntu:latest")))
             .onSubmit { commitIfValid() }
         }
 
         if !recentReferences.isEmpty {
-          Section("本地已有") {
+          Section(L10n.text("Already Local")) {
             ForEach(recentReferences.prefix(5), id: \.self) { item in
               Button {
                 reference = item
@@ -52,7 +52,7 @@ struct PullImageSheet: View {
           }
         }
 
-        Section("常用镜像") {
+        Section(L10n.text("Suggested Images")) {
           ForEach(suggestions, id: \.self) { item in
             Button {
               reference = item
@@ -68,16 +68,16 @@ struct PullImageSheet: View {
         }
 
         Section {
-          DisclosureGroup("高级选项", isExpanded: $showAdvanced) {
+          DisclosureGroup(L10n.text("Advanced Options"), isExpanded: $showAdvanced) {
             HStack {
-              Text("网络并发数")
+              Text(L10n.text("Network Concurrency"))
               Slider(value: $concurrency, in: 1...16, step: 1)
-              Text("\(Int(concurrency))").monospacedDigit().frame(width: 30)
+              Text(String(Int(concurrency))).monospacedDigit().frame(width: 30)
             }
-            Toggle("允许不安全的 HTTP 连接", isOn: $insecure)
+            Toggle(L10n.text("Allow Insecure HTTP"), isOn: $insecure)
           }
         } footer: {
-          Text("镜像通常有几十 GB，下载需要较长时间。可以在拉取过程中继续使用其他功能。")
+          Text(L10n.text("Images are often tens of GB and may take a while to download. You can continue using other features during the pull."))
             .font(.caption)
             .foregroundStyle(.secondary)
         }
@@ -88,9 +88,9 @@ struct PullImageSheet: View {
 
       HStack {
         Spacer()
-        Button("取消") { dismiss() }
+        Button(L10n.text("Cancel")) { dismiss() }
           .keyboardShortcut(.cancelAction)
-        Button("拉取") { commitIfValid() }
+        Button(L10n.text("Pull")) { commitIfValid() }
           .keyboardShortcut(.defaultAction)
           .disabled(reference.isEmpty)
       }
@@ -125,7 +125,7 @@ struct PushImageSheet: View {
   var body: some View {
     VStack(spacing: 0) {
       VStack(alignment: .leading, spacing: 2) {
-        Text("推送到仓库").font(.headline)
+        Text(L10n.text("Push to Registry")).font(.headline)
         Text(localName).font(.caption).foregroundStyle(.secondary)
       }
       .frame(maxWidth: .infinity, alignment: .leading)
@@ -137,7 +137,7 @@ struct PushImageSheet: View {
         Section {
           ForEach(targets.indices, id: \.self) { index in
             HStack {
-              TextField("", text: $targets[index], prompt: Text("如 ghcr.io/org/image:v1"))
+              TextField("", text: $targets[index], prompt: Text(L10n.text("e.g. ghcr.io/org/image:v1")))
                 .textFieldStyle(.roundedBorder)
               if targets.count > 1 {
                 Button {
@@ -153,24 +153,24 @@ struct PushImageSheet: View {
           Button {
             targets.append("")
           } label: {
-            Label("添加目标", systemImage: "plus")
+            Label(L10n.text("Add Target"), systemImage: "plus")
               .font(.caption)
           }
           .buttonStyle(.borderless)
         } header: {
-          Text("目标引用")
+          Text(L10n.text("Target References"))
         } footer: {
-          Text("可以一次推送到多个引用，比如同时打上版本号和 latest。")
+          Text(L10n.text("Push to multiple references at once, such as a version tag and latest."))
             .font(.caption)
             .foregroundStyle(.secondary)
         }
 
-        Section("标签") {
+        Section(L10n.text("Labels")) {
           ForEach(labels.indices, id: \.self) { index in
             HStack {
-              TextField("键", text: $labels[index].key)
+              TextField(L10n.text("Key"), text: $labels[index].key)
                 .textFieldStyle(.roundedBorder)
-              TextField("值", text: $labels[index].value)
+              TextField(L10n.text("Value"), text: $labels[index].value)
                 .textFieldStyle(.roundedBorder)
               Button {
                 labels.remove(at: index)
@@ -184,37 +184,37 @@ struct PushImageSheet: View {
           Button {
             labels.append(ImageLabel(key: "", value: ""))
           } label: {
-            Label("添加标签", systemImage: "plus").font(.caption)
+            Label(L10n.text("Add Label"), systemImage: "plus").font(.caption)
           }
           .buttonStyle(.borderless)
         }
 
         Section {
-          DisclosureGroup("高级选项", isExpanded: $showAdvanced) {
+          DisclosureGroup(L10n.text("Advanced Options"), isExpanded: $showAdvanced) {
             HStack {
-              Text("网络并发数")
+              Text(L10n.text("Network Concurrency"))
               Slider(value: $concurrency, in: 1...16, step: 1)
-              Text("\(Int(concurrency))").monospacedDigit().frame(width: 30)
+              Text(String(Int(concurrency))).monospacedDigit().frame(width: 30)
             }
 
-            Toggle("使用分块上传", isOn: $useChunkedUpload)
+            Toggle(L10n.text("Use Chunked Upload"), isOn: $useChunkedUpload)
 
             if useChunkedUpload {
               HStack {
-                Text("块大小")
+                Text(L10n.text("Chunk Size"))
                 Slider(value: $chunkSizeMB, in: 1...100, step: 1)
-                Text("\(Int(chunkSizeMB)) MB").monospacedDigit().frame(width: 60)
+                Text(L10n.format("%@ MB", String(Int(chunkSizeMB)))).monospacedDigit().frame(width: 60)
               }
               // 各家仓库的限制差别很大，写清楚免得用户反复试。
-              Text("各仓库要求不同：AWS ECR 只接受大于 5 MB 的块，GitHub Container Registry 只接受小于 4 MB 的，Google Container Registry 不支持分块。")
+              Text(L10n.text("Registry requirements differ: AWS ECR accepts chunks larger than 5 MB, GitHub Container Registry accepts chunks smaller than 4 MB, and Google Container Registry does not support chunks."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }
 
-            Toggle("同时缓存到本地", isOn: $populateCache)
-              .help("占用额外磁盘，但之后重新拉取会快很多")
+            Toggle(L10n.text("Populate Local Cache"), isOn: $populateCache)
+              .help(L10n.text("Uses extra disk space but makes future pulls much faster"))
 
-            Toggle("允许不安全的 HTTP 连接", isOn: $insecure)
+            Toggle(L10n.text("Allow Insecure HTTP"), isOn: $insecure)
           }
         }
       }
@@ -223,13 +223,13 @@ struct PushImageSheet: View {
       Divider()
 
       HStack {
-        Text("推送前需要先登录目标仓库。")
+        Text(L10n.text("Log in to the target registry before pushing."))
           .font(.caption)
           .foregroundStyle(.secondary)
         Spacer()
-        Button("取消") { dismiss() }
+        Button(L10n.text("Cancel")) { dismiss() }
           .keyboardShortcut(.cancelAction)
-        Button("推送") {
+        Button(L10n.text("Push")) {
           onPush(
             localName,
             validTargets,
@@ -281,7 +281,7 @@ struct RegistryLoginSheet: View {
 
   var body: some View {
     VStack(spacing: 0) {
-      Text("仓库账号")
+      Text(L10n.text("Registry Accounts"))
         .font(.headline)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
@@ -290,37 +290,37 @@ struct RegistryLoginSheet: View {
 
       Form {
         Picker("", selection: $mode) {
-          Text("登录").tag(Mode.login)
-          Text("注销").tag(Mode.logout)
+          Text(L10n.text("Log In")).tag(Mode.login)
+          Text(L10n.text("Log Out")).tag(Mode.logout)
         }
         .pickerStyle(.segmented)
         .labelsHidden()
 
         Section {
-          TextField("仓库地址", text: $host, prompt: Text("如 ghcr.io"))
+          TextField(L10n.text("Registry Host"), text: $host, prompt: Text(L10n.text("e.g. ghcr.io")))
 
           if mode == .login {
-            TextField("用户名", text: $username)
-            SecureField("密码或访问令牌", text: $password)
+            TextField(L10n.text("Username"), text: $username)
+            SecureField(L10n.text("Password or Access Token"), text: $password)
           }
         } footer: {
           if mode == .login {
             // 说清楚密码去了哪里，这是用户会关心的。
-            Text("凭据由 tart 保存到系统钥匙串，TartPro 不会存储密码。密码通过标准输入传递，不会出现在进程列表中。")
+            Text(L10n.text("tart stores credentials in the system Keychain. TartUI does not store the password; it is passed through stdin and never appears in the process list."))
               .font(.caption)
               .foregroundStyle(.secondary)
           } else {
-            Text("将从钥匙串中移除该仓库的凭据。")
+            Text(L10n.text("Credentials for this registry will be removed from the Keychain."))
               .font(.caption)
               .foregroundStyle(.secondary)
           }
         }
 
         if mode == .login {
-          Section("选项") {
-            Toggle("登录前验证凭据", isOn: $validate)
-              .help("关闭后即使仓库暂时不可达也能保存凭据")
-            Toggle("允许不安全的 HTTP 连接", isOn: $insecure)
+          Section(L10n.text("Options")) {
+            Toggle(L10n.text("Validate Credentials Before Login"), isOn: $validate)
+              .help(L10n.text("When disabled, credentials can be saved even if the registry is temporarily unreachable"))
+            Toggle(L10n.text("Allow Insecure HTTP"), isOn: $insecure)
           }
         }
 
@@ -338,16 +338,16 @@ struct RegistryLoginSheet: View {
 
       HStack {
         // tart 没有「列出已登录仓库」的命令，所以这里无法显示登录状态。
-        Text("tart 未提供查询已登录仓库的方式。")
+        Text(L10n.text("tart does not provide a way to list logged-in registries."))
           .font(.caption)
           .foregroundStyle(.secondary)
 
         Spacer()
 
-        Button("关闭") { dismiss() }
+        Button(L10n.text("Close")) { dismiss() }
           .keyboardShortcut(.cancelAction)
 
-        Button(mode == .login ? "登录" : "注销") {
+        Button(mode == .login ? L10n.text("Log In") : L10n.text("Log Out")) {
           Task { await submit() }
         }
         .keyboardShortcut(.defaultAction)
@@ -380,7 +380,7 @@ struct RegistryLoginSheet: View {
     if let error {
       message = Message(text: error, isError: true)
     } else {
-      message = Message(text: mode == .login ? "登录成功。" : "已注销。", isError: false)
+      message = Message(text: mode == .login ? L10n.text("Login succeeded.") : L10n.text("Logged out."), isError: false)
       // 成功后立刻清掉密码，不在内存里多留。
       password = ""
     }

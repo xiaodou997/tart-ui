@@ -219,7 +219,7 @@ struct RunProfileStoreTests {
   /// 每个用例用独立的临时文件，互不干扰。
   private func makeStore() -> RunProfileStore {
     let url = URL(fileURLWithPath: NSTemporaryDirectory())
-      .appendingPathComponent("tartpro-tests-\(UUID().uuidString)")
+      .appendingPathComponent("tartui-tests-\(UUID().uuidString)")
       .appendingPathComponent("run-profiles.json")
     return RunProfileStore(fileURL: url)
   }

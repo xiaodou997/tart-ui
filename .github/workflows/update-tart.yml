@@ -1,0 +1,41 @@
+name: Update Tart Runtime
+
+on:
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    name: Check upstream Tart
+    runs-on: macos-14
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out TartUI
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Update Tart submodule
+        run: ./scripts/update-tart.sh
+
+      - name: Create update pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: update bundled Tart runtime"
+          title: "chore: update bundled Tart runtime"
+          body: |
+            This automated PR updates the read-only `Vendor/tart` submodule to the
+            latest stable Tart release.
+
+            The regular TartUI build and test workflows must pass before merging.
+          branch: automation/update-tart
+          delete-branch: true
+          labels: dependencies,tart

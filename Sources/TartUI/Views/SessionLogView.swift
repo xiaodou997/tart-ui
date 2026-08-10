@@ -3,7 +3,7 @@ import TartKit
 
 /// 运行会话的日志窗口。
 struct SessionLogView: View {
-  let session: RunSession
+  let session: VMRuntimeSession
 
   @Environment(\.dismiss) private var dismiss
   @State private var autoScroll = true
@@ -57,7 +57,7 @@ struct SessionLogView: View {
       }
       .overlay {
         if session.recentLines.isEmpty {
-          Text("暂无输出")
+          Text(L10n.text("No Output Yet"))
             .font(.callout)
             .foregroundStyle(.secondary)
         }
@@ -67,11 +67,11 @@ struct SessionLogView: View {
 
   private var footer: some View {
     HStack {
-      Toggle("自动滚动", isOn: $autoScroll)
+      Toggle(L10n.text("Auto-scroll"), isOn: $autoScroll)
         .toggleStyle(.checkbox)
 
       if let url = session.logFileURL {
-        Button("在访达中显示") {
+        Button(L10n.text("Show in Finder")) {
           NSWorkspace.shared.activateFileViewerSelecting([url])
         }
         .help(url.path)
@@ -80,11 +80,11 @@ struct SessionLogView: View {
       Spacer()
 
       // 内存中只保留最近若干行，完整内容在日志文件里。
-      Text("显示最近 \(session.recentLines.count) 行")
+      Text(L10n.format("Showing the latest %@ lines", String(session.recentLines.count)))
         .font(.caption)
         .foregroundStyle(.secondary)
 
-      Button("关闭") { dismiss() }
+      Button(L10n.text("Close")) { dismiss() }
         .keyboardShortcut(.defaultAction)
     }
     .padding()
@@ -92,7 +92,7 @@ struct SessionLogView: View {
 }
 
 private struct StateChip: View {
-  let state: RunSession.State
+  let state: VMRuntimeSession.State
 
   var body: some View {
     Text(label)
@@ -105,16 +105,20 @@ private struct StateChip: View {
 
   private var label: String {
     switch state {
-    case .starting: "正在启动"
-    case .running: "运行中"
-    case let .exited(code): code == 0 ? "已退出" : "异常退出（\(code)）"
-    case .failed: "启动失败"
+    case .starting: L10n.text("Starting")
+    case .stopping: L10n.text("Stopping")
+    case .running: L10n.text("Running")
+    case let .exited(code): code == 0
+      ? L10n.text("Exited")
+      : L10n.format("Exited with code %@", String(code))
+    case .failed: L10n.text("Failed to Start")
     }
   }
 
   private var color: Color {
     switch state {
     case .starting: .orange
+    case .stopping: .orange
     case .running: .green
     case let .exited(code): code == 0 ? .secondary : .red
     case .failed: .red

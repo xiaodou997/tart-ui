@@ -2,7 +2,7 @@ import SwiftUI
 import TartKit
 
 @main
-struct TartProApp: App {
+struct TartUIApp: App {
   @State private var store = VMStore()
   @State private var selection: VMListEntry.ID?
   @State private var isCreating = false
@@ -16,10 +16,15 @@ struct TartProApp: App {
     WindowGroup {
       Group {
         if store.client == nil, let error = store.loadError {
-          SetupGuideView(message: error) {
-            let override = UserDefaults.standard.string(forKey: TartLocator.userOverrideDefaultsKey)
-            Task { await store.bootstrap(userOverride: override?.isEmpty == false ? override : nil) }
-          }
+          SetupGuideView(
+            message: error,
+            isInstalling: store.isInstallingRuntime,
+            onInstall: { Task { await store.installLatestRuntime() } },
+            onRetry: {
+              let override = TartLocator.storedUserOverride()
+              Task { await store.bootstrap(userOverride: override?.isEmpty == false ? override : nil) }
+            }
+          )
         } else {
           NavigationSplitView {
             VStack(spacing: 0) {
@@ -30,14 +35,14 @@ struct TartProApp: App {
             .toolbar {
               ToolbarItem {
                 Menu {
-                  Button("新建虚拟机…") { isCreating = true }
-                  Button("拉取镜像…") { isPulling = true }
-                  Button("从文件导入…") { importVM() }
+                  Button(L10n.text("Create VM…")) { isCreating = true }
+                  Button(L10n.text("Pull Image…")) { isPulling = true }
+                  Button(L10n.text("Import from File…")) { importVM() }
                   Divider()
-                  Button("清理磁盘空间…") { isPruning = true }
-                  Button("仓库账号…") { isManagingRegistry = true }
+                  Button(L10n.text("Prune Disk Space…")) { isPruning = true }
+                  Button(L10n.text("Registry Accounts…")) { isManagingRegistry = true }
                 } label: {
-                  Label("新建", systemImage: "plus")
+                  Label(L10n.text("New"), systemImage: "plus")
                 }
               }
             }
@@ -74,19 +79,19 @@ struct TartProApp: App {
       .task {
         // AppDelegate 拿不到 SwiftUI 的 @State，退出确认所需的数据从这里注入。
         AppDelegate.runningVMNamesProvider = { [store] in
-          store.sessions?.activeVMNames ?? []
+          store.runtimeSessions?.activeVMNames ?? []
         }
-        let override = UserDefaults.standard.string(forKey: TartLocator.userOverrideDefaultsKey)
+        let override = TartLocator.storedUserOverride()
         await store.bootstrap(userOverride: override?.isEmpty == false ? override : nil)
       }
       .alert(
-        "操作失败",
+        L10n.text("Operation Failed"),
         isPresented: Binding(
           get: { store.actionError != nil },
           set: { if !$0 { store.actionError = nil } }
         )
       ) {
-        Button("好") { store.actionError = nil }
+        Button(L10n.text("OK")) { store.actionError = nil }
       } message: {
         // 直接展示 tart 的原始报错，用户才知道到底哪里出了问题。
         Text(store.actionError ?? "")
@@ -97,7 +102,7 @@ struct TartProApp: App {
     .defaultSize(width: 960, height: 600)
     .commands {
       CommandGroup(after: .newItem) {
-        Button("刷新") {
+        Button(L10n.text("Refresh")) {
           Task { await store.refresh() }
         }
         .keyboardShortcut("r")
@@ -114,7 +119,7 @@ struct TartProApp: App {
     let panel = NSOpenPanel()
     panel.allowsMultipleSelection = false
     panel.canChooseDirectories = false
-    panel.message = "选择用 tart export 导出的文件"
+    panel.message = L10n.text("Choose a file exported by tart export")
 
     guard panel.runModal() == .OK, let url = panel.url else { return }
 
@@ -136,8 +141,7 @@ struct TartProApp: App {
     if let entry = store.entry(id: selection) {
       VMDetailView(store: store, entry: entry)
     } else {
-      ContentUnavailableView("未选择虚拟机", systemImage: "sidebar.left")
+      ContentUnavailableView(L10n.text("No VM Selected"), systemImage: "sidebar.left")
     }
   }
 }
-

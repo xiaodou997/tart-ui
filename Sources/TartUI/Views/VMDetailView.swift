@@ -20,8 +20,8 @@ struct VMDetailView: View {
   @State private var ipAddress: String?
   @State private var isLookingUpIP = false
 
-  private var session: RunSession? {
-    store.sessions?.session(for: entry.name)
+  private var session: VMRuntimeSession? {
+    store.runtimeSessions?.session(for: entry.name)
   }
 
   private var currentProfile: RunProfile {
@@ -34,8 +34,8 @@ struct VMDetailView: View {
         header
         actionBar
 
-        if let session, session.state.isActive {
-          runningBanner(session: session)
+        if let session {
+          sessionBanner(session: session)
         }
 
         if entry.isRunning {
@@ -138,12 +138,12 @@ struct VMDetailView: View {
       HStack(spacing: 8) {
         StatusBadge(state: entry.state)
 
-        Text(entry.source == .local ? "本地虚拟机" : "镜像缓存")
+        Text(L10n.text(entry.source == .local ? "Local VM" : "Image Cache"))
           .font(.caption)
           .foregroundStyle(.secondary)
 
         if entry.source == .oci {
-          Text("只读")
+          Text(L10n.text("Read-only"))
             .font(.caption)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
@@ -165,25 +165,25 @@ struct VMDetailView: View {
             isStopping = false
           }
         } label: {
-          Label(isStopping ? "正在关机…" : "关机", systemImage: "stop.circle")
+          Label(isStopping ? L10n.text("Stopping…") : L10n.text("Stop"), systemImage: "stop.circle")
         }
         .disabled(isStopping)
 
         Button {
           Task { await store.suspend(vmName: entry.name) }
         } label: {
-          Label("挂起", systemImage: "pause.circle")
+          Label(L10n.text("Suspend"), systemImage: "pause.circle")
         }
         // tart 只允许挂起以「可挂起」方式启动的虚拟机。
         .disabled(!currentProfile.suspendable)
-        .help(currentProfile.suspendable
-          ? "把虚拟机状态存到磁盘"
-          : "只有以「可挂起」选项启动的虚拟机才能挂起")
+        .help(L10n.text(currentProfile.suspendable
+          ? "Save the VM state to disk"
+          : "Only VMs started with Suspendable can be suspended"))
       } else {
         Button {
           store.start(vmName: entry.name, profile: currentProfile)
         } label: {
-          Label(entry.state == .suspended ? "恢复运行" : "启动", systemImage: "play.fill")
+          Label(entry.state == .suspended ? L10n.text("Resume") : L10n.text("Start"), systemImage: "play.fill")
         }
         .buttonStyle(.borderedProminent)
         .disabled(currentProfile.hasBlockingIssues)
@@ -193,46 +193,46 @@ struct VMDetailView: View {
         Button {
           isShowingLog = true
         } label: {
-          Label("日志", systemImage: "text.alignleft")
+          Label(L10n.text("Logs"), systemImage: "text.alignleft")
         }
       }
 
       Spacer()
 
       Menu {
-        Button("克隆…") { isCloning = true }
-        Button("推送到仓库…") { isPushing = true }
-        Button("导出为文件…") { exportVM() }
+        Button(L10n.text("Clone…")) { isCloning = true }
+        Button(L10n.text("Push to Registry…")) { isPushing = true }
+        Button(L10n.text("Export to File…")) { exportVM() }
 
         if entry.isRunning {
-          Button("执行命令…") { isExecuting = true }
+          Button(L10n.text("Run Command…")) { isExecuting = true }
         }
 
         // OCI 镜像是只读缓存，改不了也重命名不了，只能克隆或删除。
         if entry.source == .local {
-          Button("修改配置…") { isEditingConfig = true }
+          Button(L10n.text("Edit Configuration…")) { isEditingConfig = true }
             .disabled(details == nil)
-          Button("重命名…") { isRenaming = true }
+          Button(L10n.text("Rename…")) { isRenaming = true }
             .disabled(entry.isRunning)
         }
 
         Divider()
 
-        Button("删除…", role: .destructive) { isConfirmingDelete = true }
+        Button(L10n.text("Delete…"), role: .destructive) { isConfirmingDelete = true }
           .disabled(entry.isRunning)
       } label: {
-        Label("更多", systemImage: "ellipsis.circle")
+        Label(L10n.text("More"), systemImage: "ellipsis.circle")
       }
       .menuStyle(.borderlessButton)
       .fixedSize()
     }
   }
 
-  private func runningBanner(session: RunSession) -> some View {
+  private func runningBanner(session: VMRuntimeSession) -> some View {
     HStack(spacing: 8) {
       ProgressView().controlSize(.small)
       VStack(alignment: .leading, spacing: 2) {
-        Text("由 TartPro 启动，使用配置「\(session.profileName)」")
+        Text(L10n.format("Started by TartUI with profile \"%@\"", session.profileName))
           .font(.callout)
         Text(session.commandLine)
           .font(.system(.caption, design: .monospaced))
@@ -246,12 +246,50 @@ struct VMDetailView: View {
     .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
   }
 
+  @ViewBuilder
+  private func sessionBanner(session: VMRuntimeSession) -> some View {
+    switch session.state {
+    case .starting, .running, .stopping:
+      runningBanner(session: session)
+    case let .failed(failure):
+      failureBanner(failure: failure)
+    case let .exited(code) where code != 0:
+      failureBanner(
+        failure: VMRuntimeFailure(message: L10n.format("Exited with code %@", String(code)))
+      )
+    case .exited:
+      EmptyView()
+    }
+  }
+
+  private func failureBanner(failure: VMRuntimeFailure) -> some View {
+    HStack(alignment: .top, spacing: 8) {
+      Image(systemName: "exclamationmark.triangle.fill")
+        .foregroundStyle(.red)
+      VStack(alignment: .leading, spacing: 3) {
+        Text(L10n.text("Failed to Start"))
+          .font(.callout.weight(.semibold))
+        Text(failure.message)
+          .font(.callout)
+          .textSelection(.enabled)
+        if failure.kind == .bridgedNetworkingEntitlement {
+          Text(L10n.text("Bridged networking requires Apple's restricted VM networking entitlement. Choose Shared (NAT), or request it from Apple."))
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+      }
+      Spacer()
+    }
+    .padding(10)
+    .background(.red.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+  }
+
   // MARK: - 网络
 
   private var networkSection: some View {
-    GroupBox("网络") {
+    GroupBox(L10n.text("Network")) {
       HStack {
-        Text("IP 地址").foregroundStyle(.secondary)
+        Text(L10n.text("IP Address")).foregroundStyle(.secondary)
         Spacer()
         if let ipAddress {
           Text(ipAddress)
@@ -264,11 +302,11 @@ struct VMDetailView: View {
             Image(systemName: "doc.on.doc")
           }
           .buttonStyle(.borderless)
-          .help("复制")
+          .help(L10n.text("Copy"))
         } else if isLookingUpIP {
           ProgressView().controlSize(.small)
         } else {
-          Button("查询") { lookUpIP() }
+          Button(L10n.text("Look Up")) { lookUpIP() }
             .buttonStyle(.borderless)
         }
       }
@@ -290,7 +328,7 @@ struct VMDetailView: View {
     let panel = NSSavePanel()
     panel.nameFieldStringValue = "\(entry.name).tvm"
     panel.canCreateDirectories = true
-    panel.message = "选择导出位置。虚拟机有几十 GB，导出需要一段时间。"
+    panel.message = L10n.text("Choose an export location. VMs can be tens of GB and may take a while to export.")
 
     guard panel.runModal() == .OK, let url = panel.url else { return }
     store.exportVM(name: entry.name, to: url.path)
@@ -299,21 +337,25 @@ struct VMDetailView: View {
   // MARK: - 规格
 
   private var specSection: some View {
-    GroupBox("配置") {
+    GroupBox(L10n.text("Configuration")) {
       if let details {
         VStack(spacing: 0) {
-          SpecRow(label: "CPU", value: "\(details.cpuCount) 核")
+          SpecRow(label: L10n.text("CPU"), value: L10n.format("%@ cores", String(details.cpuCount)))
           Divider()
-          SpecRow(label: "内存", value: String(format: "%.0f GB", details.memoryGB))
+          SpecRow(label: L10n.text("Memory"), value: L10n.format("%@ GB", String(format: "%.0f", details.memoryGB)))
           Divider()
-          SpecRow(label: "显示", value: details.display.description)
+          SpecRow(label: L10n.text("Display"), value: details.display.description)
           Divider()
           SpecRow(
-            label: "磁盘",
-            value: String(format: "%.1f GB 已用 / %d GB", details.allocatedSizeGB, details.diskSizeGB)
+            label: L10n.text("Disk"),
+            value: L10n.format(
+              "%@ GB used / %@ GB",
+              String(format: "%.1f", details.allocatedSizeGB),
+              String(details.diskSizeGB)
+            )
           )
           Divider()
-          SpecRow(label: "系统", value: details.os == "darwin" ? "macOS" : details.os)
+          SpecRow(label: L10n.text("System"), value: details.os == "darwin" ? "macOS" : details.os)
         }
       } else if let detailsError {
         Text(detailsError)
@@ -332,17 +374,17 @@ struct VMDetailView: View {
   // MARK: - 启动配置
 
   private var profileSection: some View {
-    GroupBox("启动配置") {
+    GroupBox(L10n.text("Run Profile")) {
       VStack(alignment: .leading, spacing: 10) {
         let available = store.profiles.profiles(for: entry.name)
 
         HStack {
           if available.isEmpty {
-            Text("尚未创建配置，将使用默认参数启动。")
+            Text(L10n.text("No profile yet; the VM will start with default arguments."))
               .font(.callout)
               .foregroundStyle(.secondary)
           } else {
-            Picker("使用配置", selection: $selectedProfileID) {
+            Picker(L10n.text("Profile"), selection: $selectedProfileID) {
               ForEach(available) { profile in
                 Text(profile.name).tag(Optional(profile.id))
               }
@@ -353,7 +395,7 @@ struct VMDetailView: View {
 
           Spacer()
 
-          Button(available.isEmpty ? "新建配置…" : "编辑…") {
+          Button(available.isEmpty ? L10n.text("Create Profile…") : L10n.text("Edit…")) {
             isEditingProfile = true
           }
         }
@@ -363,7 +405,7 @@ struct VMDetailView: View {
           VStack(alignment: .leading, spacing: 4) {
             ForEach(warnings) { warning in
               Label {
-                Text(warning.message).font(.caption)
+              Text(L10n.text(warning.message)).font(.caption)
               } icon: {
                 Image(systemName: warning.isBlocking
                   ? "exclamationmark.octagon.fill"
@@ -431,10 +473,10 @@ struct StatusBadge: View {
 
   private var label: String {
     switch state {
-    case .running: "运行中"
-    case .suspended: "已挂起"
-    case .stopped: "已停止"
-    case .unknown: "状态未知"
+    case .running: L10n.text("Running")
+    case .suspended: L10n.text("Suspended")
+    case .stopped: L10n.text("Stopped")
+    case .unknown: L10n.text("Unknown State")
     }
   }
 

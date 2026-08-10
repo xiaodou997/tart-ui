@@ -1,0 +1,16 @@
+diff --git a/Sources/tart/Commands/Run.swift b/Sources/tart/Commands/Run.swift
+index 0000000..0000000 100644
+--- a/Sources/tart/Commands/Run.swift
++++ b/Sources/tart/Commands/Run.swift
+@@ -878,6 +878,10 @@ struct MainApp: App {
+ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
+   func applicationDidFinishLaunching(_ : Notification) {
+     let nsApp = NSApplication.shared
+-    nsApp.setActivationPolicy(.regular)
++    if ProcessInfo.processInfo.environment["TARTUI_RUNTIME_AGENT"] == "1" {
++      nsApp.setActivationPolicy(.accessory)
++    } else {
++      nsApp.setActivationPolicy(.regular)
++    }
+     nsApp.activate(ignoringOtherApps: true)
+   }

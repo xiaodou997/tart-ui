@@ -25,7 +25,7 @@ struct CreateVMSheet: View {
 
   var body: some View {
     VStack(spacing: 0) {
-      Text("新建虚拟机")
+      Text(L10n.text("Create VM"))
         .font(.headline)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
@@ -34,62 +34,62 @@ struct CreateVMSheet: View {
 
       Form {
         Section {
-          TextField("名称", text: $name, prompt: Text("如 dev-machine"))
+          TextField(L10n.text("Name"), text: $name, prompt: Text(L10n.text("e.g. dev-machine")))
 
           if let issue = nameIssue {
-            Label(issue, systemImage: "exclamationmark.triangle.fill")
+            Label(L10n.text(issue), systemImage: "exclamationmark.triangle.fill")
               .font(.caption)
               .foregroundStyle(.orange)
           }
         }
 
-        Section("系统") {
-          Picker("类型", selection: $kind) {
+        Section(L10n.text("System")) {
+          Picker(L10n.text("Type"), selection: $kind) {
             Text("macOS").tag(Kind.macOS)
             Text("Linux").tag(Kind.linux)
           }
           .pickerStyle(.segmented)
 
           if kind == .macOS {
-            Picker("安装源", selection: $ipswSource) {
-              Text("自动获取最新版").tag(IPSWSource.latest)
-              Text("指定 IPSW").tag(IPSWSource.custom)
+            Picker(L10n.text("Installation Source"), selection: $ipswSource) {
+              Text(L10n.text("Download Latest")) .tag(IPSWSource.latest)
+              Text(L10n.text("Specify IPSW")).tag(IPSWSource.custom)
             }
 
             if ipswSource == .custom {
               HStack {
-                TextField("IPSW 路径或 URL", text: $ipswPath)
-                Button("选择…") { chooseIPSW() }
+                TextField(L10n.text("IPSW Path or URL"), text: $ipswPath)
+                Button(L10n.text("Choose…")) { chooseIPSW() }
               }
             } else {
-              Text("tart 会自动下载最新支持的 macOS 安装包，约 15 GB。")
+              Text(L10n.text("tart will download the latest supported macOS installer, about 15 GB."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }
           } else {
-            Text("将创建空白的 Linux 虚拟机，需要自行挂载安装介质后再启动。")
+            Text(L10n.text("This creates a blank Linux VM. Attach installation media before starting it."))
               .font(.caption)
               .foregroundStyle(.secondary)
           }
         }
 
-        Section("磁盘") {
+        Section(L10n.text("Disk")) {
           HStack {
             Slider(value: $diskSizeGB, in: 20...500, step: 10)
-            Text("\(Int(diskSizeGB)) GB")
+            Text(L10n.format("%@ GB", String(Int(diskSizeGB))))
               .monospacedDigit()
               .frame(width: 70, alignment: .trailing)
           }
 
-          Picker("格式", selection: $diskFormat) {
+          Picker(L10n.text("Format"), selection: $diskFormat) {
             ForEach(DiskFormat.allCases, id: \.self) { format in
-              Text(format.displayName).tag(format)
+              Text(L10n.text(format.displayName)).tag(format)
             }
           }
 
           if diskFormat == .asif && !isTahoeOrLater {
             // ASIF 需要 macOS 26，低版本上创建会失败。
-            Label("当前系统版本不支持 ASIF 格式，创建会失败。", systemImage: "exclamationmark.octagon.fill")
+            Label(L10n.text("This macOS version does not support ASIF; creation will fail."), systemImage: "exclamationmark.octagon.fill")
               .font(.caption)
               .foregroundStyle(.red)
           }
@@ -101,9 +101,9 @@ struct CreateVMSheet: View {
 
       HStack {
         Spacer()
-        Button("取消") { dismiss() }
+        Button(L10n.text("Cancel")) { dismiss() }
           .keyboardShortcut(.cancelAction)
-        Button("创建") {
+        Button(L10n.text("Create")) {
           onCreate(name, source, UInt(diskSizeGB), diskFormat)
           dismiss()
         }
@@ -125,11 +125,11 @@ struct CreateVMSheet: View {
   private var nameIssue: String? {
     guard !name.isEmpty else { return nil }
     if existingNames.contains(name) {
-      return "已经有同名的虚拟机了。"
+      return "A VM with this name already exists."
     }
     if name.contains("/") || name.contains(":") {
       // 这两个字符在 OCI 引用里有特殊含义，用作本地名字会造成歧义。
-      return "名称不能包含斜杠或冒号。"
+      return "Names cannot contain slash or colon."
     }
     return nil
   }
@@ -186,7 +186,7 @@ struct CloneVMSheet: View {
 
   var body: some View {
     VStack(spacing: 0) {
-      Text("克隆虚拟机")
+      Text(L10n.text("Clone VM"))
         .font(.headline)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
@@ -194,39 +194,39 @@ struct CloneVMSheet: View {
       Divider()
 
       Form {
-        Section("来源") {
+        Section(L10n.text("Source")) {
           Text(sourceName)
             .font(.system(.callout, design: .monospaced))
             .textSelection(.enabled)
         }
 
-        Section("新名称") {
-          TextField("名称", text: $newName)
+        Section(L10n.text("New Name")) {
+          TextField(L10n.text("Name"), text: $newName)
 
           if existingNames.contains(newName) {
-            Label("已经有同名的虚拟机了。", systemImage: "exclamationmark.triangle.fill")
+            Label(L10n.text("A VM with this name already exists."), systemImage: "exclamationmark.triangle.fill")
               .font(.caption)
               .foregroundStyle(.orange)
           }
         }
 
         Section {
-          DisclosureGroup("高级选项", isExpanded: $showAdvanced) {
+          DisclosureGroup(L10n.text("Advanced Options"), isExpanded: $showAdvanced) {
             HStack {
-              Text("网络并发数")
+              Text(L10n.text("Network Concurrency"))
               Slider(value: $concurrency, in: 1...16, step: 1)
               Text("\(Int(concurrency))")
                 .monospacedDigit()
                 .frame(width: 30)
             }
-            .help("从远程仓库拉取时的并发连接数")
+            .help(L10n.text("Number of concurrent connections used when pulling from a registry"))
 
-            Toggle("允许不安全的 HTTP 连接", isOn: $insecure)
-              .help("仅在访问内网的私有仓库时才需要")
+            Toggle(L10n.text("Allow Insecure HTTP"), isOn: $insecure)
+              .help(L10n.text("Only needed for private registries on an internal network"))
           }
         } footer: {
           if isRemoteSource {
-            Text("从远程仓库克隆需要下载完整镜像，可能需要较长时间。")
+            Text(L10n.text("Cloning from a registry downloads the complete image and may take a while."))
               .font(.caption)
               .foregroundStyle(.secondary)
           }
@@ -238,9 +238,9 @@ struct CloneVMSheet: View {
 
       HStack {
         Spacer()
-        Button("取消") { dismiss() }
+        Button(L10n.text("Cancel")) { dismiss() }
           .keyboardShortcut(.cancelAction)
-        Button("克隆") {
+        Button(L10n.text("Clone")) {
           onClone(sourceName, newName, insecure, UInt(concurrency))
           dismiss()
         }

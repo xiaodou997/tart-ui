@@ -70,7 +70,7 @@ struct IntegrationTests {
   @Test("查询不存在的虚拟机会带回 tart 的原始错误信息")
   func reportsMissingVM() async throws {
     let client = try makeClient()
-    let ghostName = "tartpro-nonexistent-\(UUID().uuidString.prefix(8))"
+    let ghostName = "tartui-nonexistent-\(UUID().uuidString.prefix(8))"
 
     do {
       _ = try await client.get(name: ghostName)

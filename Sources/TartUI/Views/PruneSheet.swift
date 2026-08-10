@@ -19,7 +19,7 @@ struct PruneSheet: View {
 
   var body: some View {
     VStack(spacing: 0) {
-      Text("清理磁盘空间")
+      Text(L10n.text("Prune Disk Space"))
         .font(.headline)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
@@ -27,10 +27,10 @@ struct PruneSheet: View {
       Divider()
 
       Form {
-        Section("清理对象") {
-          Picker("对象", selection: $target) {
+        Section(L10n.text("Prune Target")) {
+          Picker(L10n.text("Target"), selection: $target) {
             ForEach(PruneTarget.allCases, id: \.self) { item in
-              Text(item.displayName).tag(item)
+              Text(L10n.text(item.displayName)).tag(item)
             }
           }
           .pickerStyle(.radioGroup)
@@ -39,7 +39,7 @@ struct PruneSheet: View {
           if target.isDestructive {
             // 缓存删了能重新下载，虚拟机删了就没了。
             Label(
-              "这会删除真正的虚拟机，不是可以重新下载的缓存。",
+              L10n.text("This deletes actual VMs, not re-downloadable caches."),
               systemImage: "exclamationmark.octagon.fill"
             )
             .font(.caption)
@@ -47,39 +47,39 @@ struct PruneSheet: View {
           }
         }
 
-        Section("条件") {
-          Toggle("清理长期未使用的条目", isOn: $useAgeLimit)
+        Section(L10n.text("Criteria")) {
+          Toggle(L10n.text("Remove unused entries"), isOn: $useAgeLimit)
           if useAgeLimit {
             HStack {
-              Text("超过")
+              Text(L10n.text("Older than"))
               Slider(value: $olderThanDays, in: 1...180, step: 1)
-              Text("\(Int(olderThanDays)) 天")
+              Text(L10n.format("%@ days", String(Int(olderThanDays))))
                 .monospacedDigit()
                 .frame(width: 60, alignment: .trailing)
             }
           }
 
-          Toggle("限制总占用空间", isOn: $useSpaceBudget)
+          Toggle(L10n.text("Limit total disk usage"), isOn: $useSpaceBudget)
           if useSpaceBudget {
             HStack {
-              Text("保留")
+              Text(L10n.text("Keep"))
               Slider(value: $spaceBudgetGB, in: 10...1000, step: 10)
-              Text("\(Int(spaceBudgetGB)) GB")
+              Text(L10n.format("%@ GB", String(Int(spaceBudgetGB))))
                 .monospacedDigit()
                 .frame(width: 70, alignment: .trailing)
             }
           }
 
           if !useAgeLimit && !useSpaceBudget {
-            Text("至少需要指定一个条件。")
+            Text(L10n.text("Select at least one criterion."))
               .font(.caption)
               .foregroundStyle(.orange)
           }
         }
 
-        Section("预计删除") {
+        Section(L10n.text("Estimated Deletions")) {
           if plan.isEmpty {
-            Text(hasCriteria ? "按当前条件，没有条目会被删除。" : "请先指定清理条件。")
+            Text(L10n.text(hasCriteria ? "No entries match the current criteria." : "Select at least one criterion first."))
               .font(.callout)
               .foregroundStyle(.secondary)
           } else {
@@ -99,7 +99,7 @@ struct PruneSheet: View {
               }
             }
 
-            Text("共 \(plan.candidates.count) 项，预计释放约 \(plan.reclaimedGB) GB。")
+            Text(L10n.format("%@ entries; approximately %@ GB will be reclaimed.", String(plan.candidates.count), String(plan.reclaimedGB)))
               .font(.callout)
               .padding(.top, 4)
           }
@@ -107,7 +107,7 @@ struct PruneSheet: View {
           if plan.mayBeIncomplete && hasCriteria {
             // 这一条很重要：不能让用户以为看到的就是全部。
             Label(
-              "预览不含 IPSW 安装包缓存——tart 未提供查询它的方式，实际删除的内容可能更多。",
+              L10n.text("The preview excludes IPSW installer caches because tart cannot list them. The actual cleanup may remove more."),
               systemImage: "info.circle"
             )
             .font(.caption)
@@ -118,7 +118,7 @@ struct PruneSheet: View {
         if target.isDestructive && !plan.isEmpty {
           Section {
             VStack(alignment: .leading, spacing: 4) {
-              Text("请输入 **删除** 以确认：")
+              Text(L10n.text("Type DELETE to confirm:"))
                 .font(.caption)
               TextField("", text: $typedConfirmation)
                 .textFieldStyle(.roundedBorder)
@@ -131,13 +131,13 @@ struct PruneSheet: View {
       Divider()
 
       HStack {
-        Text("此操作不可撤销。")
+        Text(L10n.text("This operation cannot be undone."))
           .font(.caption)
           .foregroundStyle(.secondary)
         Spacer()
-        Button("取消") { dismiss() }
+        Button(L10n.text("Cancel")) { dismiss() }
           .keyboardShortcut(.cancelAction)
-        Button("清理") {
+        Button(L10n.text("Prune")) {
           Task {
             await store.prune(
               target: target,
@@ -171,7 +171,7 @@ struct PruneSheet: View {
   private var canPrune: Bool {
     guard hasCriteria else { return false }
     if target.isDestructive && !plan.isEmpty {
-      return typedConfirmation == "删除"
+      return typedConfirmation == "DELETE"
     }
     return true
   }
@@ -199,7 +199,7 @@ struct ExecSheet: View {
   var body: some View {
     VStack(spacing: 0) {
       VStack(alignment: .leading, spacing: 2) {
-        Text("在虚拟机内执行命令").font(.headline)
+        Text(L10n.text("Run a Command in the VM")).font(.headline)
         Text(vmName).font(.caption).foregroundStyle(.secondary)
       }
       .frame(maxWidth: .infinity, alignment: .leading)
@@ -208,13 +208,13 @@ struct ExecSheet: View {
       Divider()
 
       HStack {
-        TextField("命令", text: $commandText, prompt: Text("如 sw_vers -productVersion"))
+        TextField(L10n.text("Command"), text: $commandText, prompt: Text(L10n.text("e.g. sw_vers -productVersion")))
           .textFieldStyle(.roundedBorder)
           .font(.system(.body, design: .monospaced))
           .onSubmit { runCommand() }
           .disabled(isRunning)
 
-        Button(isRunning ? "执行中…" : "执行") { runCommand() }
+        Button(isRunning ? L10n.text("Running…") : L10n.text("Run")) { runCommand() }
           .disabled(commandText.isEmpty || isRunning)
       }
       .padding()
@@ -243,11 +243,11 @@ struct ExecSheet: View {
       .overlay {
         if output.isEmpty && errorOutput.isEmpty && !isRunning {
           VStack(spacing: 6) {
-            Text("暂无输出")
+            Text(L10n.text("No Output Yet"))
               .font(.callout)
               .foregroundStyle(.secondary)
             // 这是最常见的失败原因，提前说明省得用户困惑。
-            Text("需要虚拟机内已安装并运行 tart-guest-agent。")
+            Text(L10n.text("The VM must have tart-guest-agent installed and running."))
               .font(.caption)
               .foregroundStyle(.secondary)
           }
@@ -259,14 +259,14 @@ struct ExecSheet: View {
       HStack {
         if let exitCode {
           Label(
-            exitCode == 0 ? "执行成功" : "退出码 \(exitCode)",
+            exitCode == 0 ? L10n.text("Command Succeeded") : L10n.format("Exit code %@", String(exitCode)),
             systemImage: exitCode == 0 ? "checkmark.circle.fill" : "xmark.circle.fill"
           )
           .font(.caption)
           .foregroundStyle(exitCode == 0 ? .green : .red)
         }
         Spacer()
-        Button("关闭") { dismiss() }
+        Button(L10n.text("Close")) { dismiss() }
           .keyboardShortcut(.cancelAction)
       }
       .padding()

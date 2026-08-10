@@ -80,7 +80,7 @@ extension TartClient {
   /// 密码通过标准输入传给 tart（`--password-stdin`），**绝不作为命令行参数**——
   /// 命令行参数会出现在 `ps` 输出里，同机的任何进程都能看到。
   ///
-  /// 凭据由 tart 自己存进钥匙串，TartPro 不保存也不缓存密码。
+  /// 凭据由 tart 自己存进钥匙串，TartUI 不保存也不缓存密码。
   ///
   /// - Parameter validate: 为 true 时 tart 会先验证凭据再保存。
   ///   关掉它可以在仓库暂时不可达时也先存下凭据。

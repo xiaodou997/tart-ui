@@ -14,8 +14,18 @@ public struct TartClient: Sendable {
 
   /// 用默认的二进制探测逻辑构造。
   public init(userOverride: String? = nil, locator: TartLocator = TartLocator()) throws {
-    let binaryURL = try locator.locate(userOverride: userOverride)
-    self.init(executor: TartExecutor(binaryURL: binaryURL))
+    let runtime = try locator.resolve(userOverride: userOverride)
+    self.init(runtime: runtime)
+  }
+
+  /// 用已经解析好的运行时构造，供 UI 展示来源并避免重复探测。
+  public init(runtime: TartRuntime, environment: [String: String]? = nil) {
+    self.init(executor: TartExecutor(binaryURL: runtime.binaryURL, environment: environment))
+  }
+
+  /// 用明确的可执行文件构造，方便集成测试和高级用户指定路径。
+  public init(binaryURL: URL, environment: [String: String]? = nil) {
+    self.init(executor: TartExecutor(binaryURL: binaryURL, environment: environment))
   }
 
   // MARK: - 查询
