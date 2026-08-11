@@ -229,18 +229,46 @@ struct VMDetailView: View {
   }
 
   private func runningBanner(session: VMRuntimeSession) -> some View {
-    HStack(spacing: 8) {
-      ProgressView().controlSize(.small)
-      VStack(alignment: .leading, spacing: 2) {
-        Text(L10n.format("Started by TartUI with profile \"%@\"", session.profileName))
-          .font(.callout)
-        Text(session.commandLine)
+    VStack(alignment: .leading, spacing: 8) {
+      HStack(spacing: 8) {
+        ProgressView().controlSize(.small)
+        VStack(alignment: .leading, spacing: 2) {
+          Text(L10n.format("Started by TartUI with profile \"%@\"", session.profileName))
+            .font(.callout)
+          Text(session.commandLine)
+            .font(.system(.caption, design: .monospaced))
+            .foregroundStyle(.secondary)
+            .textSelection(.enabled)
+            .lineLimit(2)
+        }
+        Spacer()
+
+        if session.displayDriverOwnsWindow, session.state.isActive {
+          Button(L10n.text("Show VM Window")) {
+            store.showWindow(vmName: session.vmName)
+          }
+        }
+
+        Button(L10n.text("Logs")) {
+          isShowingLog = true
+        }
+      }
+
+      if let warning = session.windowWarning {
+        Label(warning, systemImage: "exclamationmark.triangle.fill")
+          .font(.caption)
+          .foregroundStyle(.orange)
+      }
+
+      Divider()
+
+      ForEach(Array(session.recentLines.suffix(4))) { line in
+        Text(line.text)
           .font(.system(.caption, design: .monospaced))
-          .foregroundStyle(.secondary)
+          .foregroundStyle(line.isError ? .red : .secondary)
           .textSelection(.enabled)
           .lineLimit(2)
       }
-      Spacer()
     }
     .padding(10)
     .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
@@ -249,7 +277,7 @@ struct VMDetailView: View {
   @ViewBuilder
   private func sessionBanner(session: VMRuntimeSession) -> some View {
     switch session.state {
-    case .starting, .running, .stopping:
+    case .starting, .waitingForWindow, .running, .stopping:
       runningBanner(session: session)
     case let .failed(failure):
       failureBanner(failure: failure)

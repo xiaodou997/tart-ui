@@ -11,12 +11,19 @@ final class VMDisplayCoordinator {
 
   func sessionDidStart(_ session: VMRuntimeSession) {
     activeModes[session.vmName] = session.displayMode
+  }
 
-    // 原生窗口由 Agent helper 创建，但用户操作的应用身份属于 TartUI。
-    // 激活外层应用可以避免启动后焦点停留在 Finder 或终端。
-    if session.displayDriverOwnsWindow {
-      NSApp.activate(ignoringOtherApps: true)
-    }
+  func sessionWindowDidBecomeReady(_ session: VMRuntimeSession) {
+    _ = bringWindowForward(session)
+  }
+
+  @discardableResult
+  func bringWindowForward(_ session: VMRuntimeSession) -> Bool {
+    guard let processIdentifier = session.processIdentifier,
+          let application = NSRunningApplication(processIdentifier: processIdentifier)
+    else { return false }
+
+    return application.activate(options: [.activateAllWindows])
   }
 
   func sessionDidFinish(_ session: VMRuntimeSession) {

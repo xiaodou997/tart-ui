@@ -22,6 +22,7 @@ public struct CommandResult: Sendable {
 /// `pull` / `clone` 的进度只在 stderr 上滚动，`run` 更是长驻不退出，
 /// 这类命令不能等它结束再取输出。
 public enum CommandEvent: Sendable {
+  case started(processIdentifier: Int32)
   case stdout(String)
   case stderr(String)
   case exited(Int32)
@@ -86,6 +87,7 @@ public struct TartExecutor: TartExecuting {
 
       do {
         try handle.streamLines(
+          onStart: { continuation.yield(.started(processIdentifier: $0)) },
           onStdout: { continuation.yield(.stdout($0)) },
           onStderr: { continuation.yield(.stderr($0)) },
           onExit: { code in

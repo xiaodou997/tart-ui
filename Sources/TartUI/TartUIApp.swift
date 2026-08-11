@@ -4,6 +4,8 @@ import TartKit
 @main
 struct TartUIApp: App {
   @State private var store = VMStore()
+  @State private var languageStore = AppLanguageStore()
+  @State private var hasBootstrapped = false
   @State private var selection: VMListEntry.ID?
   @State private var isCreating = false
   @State private var isPulling = false
@@ -75,8 +77,12 @@ struct TartUIApp: App {
           }
         }
       }
+      .id(languageStore.selection)
+      .environment(\.locale, languageStore.locale)
       .frame(minWidth: 760, minHeight: 460)
       .task {
+        guard !hasBootstrapped else { return }
+        hasBootstrapped = true
         // AppDelegate 拿不到 SwiftUI 的 @State，退出确认所需的数据从这里注入。
         AppDelegate.runningVMNamesProvider = { [store] in
           store.runtimeSessions?.activeVMNames ?? []
@@ -110,7 +116,9 @@ struct TartUIApp: App {
     }
 
     Settings {
-      SettingsView(store: store)
+      SettingsView(store: store, languageStore: languageStore)
+        .id(languageStore.selection)
+        .environment(\.locale, languageStore.locale)
     }
   }
 

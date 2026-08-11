@@ -42,6 +42,7 @@ struct LiveVMTests {
       do {
         for try await event in client.runVM(name: vmName, profile: profile) {
           switch event {
+          case .started: break
           case let .stdout(line): await collector.append(line, isError: false)
           case let .stderr(line): await collector.append(line, isError: true)
           case let .exited(code): await collector.markExited(code)

@@ -41,7 +41,7 @@ struct SessionLogView: View {
           ForEach(session.recentLines) { line in
             Text(line.text)
               .font(.system(.caption, design: .monospaced))
-              .foregroundStyle(line.isError ? .primary : .secondary)
+              .foregroundStyle(line.isError ? .red : line.isLifecycle ? .secondary : .primary)
               .textSelection(.enabled)
               .frame(maxWidth: .infinity, alignment: .leading)
               .id(line.id)
@@ -106,6 +106,7 @@ private struct StateChip: View {
   private var label: String {
     switch state {
     case .starting: L10n.text("Starting")
+    case .waitingForWindow: L10n.text("Waiting for Window")
     case .stopping: L10n.text("Stopping")
     case .running: L10n.text("Running")
     case let .exited(code): code == 0
@@ -117,7 +118,7 @@ private struct StateChip: View {
 
   private var color: Color {
     switch state {
-    case .starting: .orange
+    case .starting, .waitingForWindow: .orange
     case .stopping: .orange
     case .running: .green
     case let .exited(code): code == 0 ? .secondary : .red

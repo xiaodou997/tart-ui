@@ -58,7 +58,14 @@ final class VMStore {
       self.runtime = runtime
       self.client = client
       let runtimeService = TartVMRuntimeService(runtime: runtime, client: client)
-      self.runtimeSessions = VMRuntimeCoordinator(runtime: runtimeService)
+      self.runtimeSessions = VMRuntimeCoordinator(
+        runtime: runtimeService,
+        onSessionFinished: { [weak self] _ in
+          Task { @MainActor [weak self] in
+            await self?.refresh()
+          }
+        }
+      )
       self.loadError = nil
       self.runtimeInstallError = nil
 
@@ -264,6 +271,13 @@ final class VMStore {
   /// 但 TartUI 拿不到它的进程句柄，只能请求关机、不能强制结束。
   func isManagedByApp(_ vmName: String) -> Bool {
     runtimeSessions?.isManaged(vmName) ?? false
+  }
+
+  func showWindow(vmName: String) {
+    guard runtimeSessions?.showWindow(vmName: vmName) == true else {
+      actionError = L10n.text("The VM window is not ready yet.")
+      return
+    }
   }
 
   // MARK: - 创建与克隆

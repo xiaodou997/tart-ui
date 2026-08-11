@@ -16,15 +16,21 @@ final class VMRuntimeCoordinator {
   private(set) var finishedSessions: [VMRuntimeSession] = []
 
   private var tasks: [String: Task<Void, Never>] = [:]
+  private var windowTimeoutTasks: [String: Task<Void, Never>] = [:]
   private let runtime: any VMRuntimeService
   private let displayCoordinator: VMDisplayCoordinator
+  private let onSessionFinished: @MainActor @Sendable (VMRuntimeSession) -> Void
+
+  private static let windowReadyMarker = "TARTUI_EVENT:window-ready"
 
   init(
     runtime: any VMRuntimeService,
-    displayCoordinator: VMDisplayCoordinator = VMDisplayCoordinator()
+    displayCoordinator: VMDisplayCoordinator = VMDisplayCoordinator(),
+    onSessionFinished: @escaping @MainActor @Sendable (VMRuntimeSession) -> Void = { _ in }
   ) {
     self.runtime = runtime
     self.displayCoordinator = displayCoordinator
+    self.onSessionFinished = onSessionFinished
   }
 
   // MARK: - 查询
@@ -77,9 +83,22 @@ final class VMRuntimeCoordinator {
     do {
       for try await event in runtime.start(plan: plan) {
         switch event {
+        case let .started(processIdentifier):
+          session.markProcessStarted(processIdentifier: processIdentifier)
+          if session.displayDriverOwnsWindow, !session.isWindowReady {
+            scheduleWindowTimeout(for: session, vmName: vmName)
+          }
         case let .stdout(line):
+          if session.state == .starting { session.markRunning() }
           session.append(line, isError: false)
         case let .stderr(line):
+          if line == Self.windowReadyMarker {
+            windowTimeoutTasks.removeValue(forKey: vmName)?.cancel()
+            session.markWindowReady()
+            displayCoordinator.sessionWindowDidBecomeReady(session)
+            continue
+          }
+          if session.state == .starting { session.markRunning() }
           // Tart 把正常的启动进度也写在 stderr 上，保留来源但不直接判定失败。
           session.append(line, isError: true)
         case let .exited(code):
@@ -107,11 +126,22 @@ final class VMRuntimeCoordinator {
   private func retire(vmName: String) {
     guard let session = sessions[vmName], !session.state.isActive else { return }
     tasks.removeValue(forKey: vmName)
+    windowTimeoutTasks.removeValue(forKey: vmName)?.cancel()
     displayCoordinator.sessionDidFinish(session)
     finishedSessions.append(session)
 
     if finishedSessions.count > 20 {
       finishedSessions.removeFirst(finishedSessions.count - 20)
+    }
+    onSessionFinished(session)
+  }
+
+  private func scheduleWindowTimeout(for session: VMRuntimeSession, vmName: String) {
+    windowTimeoutTasks.removeValue(forKey: vmName)?.cancel()
+    windowTimeoutTasks[vmName] = Task { @MainActor [weak session] in
+      try? await Task.sleep(for: .seconds(8))
+      guard !Task.isCancelled, let session else { return }
+      session.markWindowWaitTimedOut()
     }
   }
 
@@ -142,6 +172,12 @@ final class VMRuntimeCoordinator {
   /// 强制终止 TartUI 自己启动的进程，等同于断电。
   func forceTerminate(vmName: String) {
     tasks[vmName]?.cancel()
+  }
+
+  @discardableResult
+  func showWindow(vmName: String) -> Bool {
+    guard let session = sessions[vmName], session.state.isActive else { return false }
+    return displayCoordinator.bringWindowForward(session)
   }
 
   func dismissFinished(_ session: VMRuntimeSession) {

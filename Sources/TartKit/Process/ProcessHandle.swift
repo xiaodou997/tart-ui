@@ -96,31 +96,42 @@ final class ProcessHandle: @unchecked Sendable {
 
   /// 启动并按行回调输出。回调发生在后台队列。
   func streamLines(
+    onStart: @escaping @Sendable (Int32) -> Void,
     onStdout: @escaping @Sendable (String) -> Void,
     onStderr: @escaping @Sendable (String) -> Void,
     onExit: @escaping @Sendable (Int32) -> Void
   ) throws {
     let stdoutSplitter = LineSplitter()
     let stderrSplitter = LineSplitter()
+    let startGate = CallbackGate()
 
     installHandlers(
       onStdoutData: { data in
-        for line in stdoutSplitter.push(data) { onStdout(line) }
+        startGate.submit {
+          for line in stdoutSplitter.push(data) { onStdout(line) }
+        }
       },
       onStderrData: { data in
-        for line in stderrSplitter.push(data) { onStderr(line) }
+        startGate.submit {
+          for line in stderrSplitter.push(data) { onStderr(line) }
+        }
       },
       onAllDone: { [weak self] in
-        guard let self, self.claimFinish() else { return }
-        // 收尾：管道关闭时可能还剩一段没有换行符结尾的内容。
-        if let tail = stdoutSplitter.flush() { onStdout(tail) }
-        if let tail = stderrSplitter.flush() { onStderr(tail) }
-        onExit(self.readExitCode())
+        guard let owner = self else { return }
+        startGate.submit { [owner] in
+          guard owner.claimFinish() else { return }
+          // 收尾：管道关闭时可能还剩一段没有换行符结尾的内容。
+          if let tail = stdoutSplitter.flush() { onStdout(tail) }
+          if let tail = stderrSplitter.flush() { onStderr(tail) }
+          onExit(owner.readExitCode())
+        }
       }
     )
 
     do {
       try process.run()
+      onStart(process.processIdentifier)
+      startGate.open()
       writeStdinIfNeeded()
     } catch {
       throw TartError.launchFailed(underlying: error)
@@ -221,6 +232,35 @@ final class ProcessHandle: @unchecked Sendable {
 }
 
 // MARK: - 辅助类型
+
+/// 确保 `started(PID)` 总在任何输出或退出事件之前送达。
+private final class CallbackGate: @unchecked Sendable {
+  private let lock = NSLock()
+  private var isOpen = false
+  private var pending: [@Sendable () -> Void] = []
+
+  func submit(_ callback: @escaping @Sendable () -> Void) {
+    lock.lock()
+    if isOpen {
+      lock.unlock()
+      callback()
+    } else {
+      pending.append(callback)
+      lock.unlock()
+    }
+  }
+
+  func open() {
+    lock.lock()
+    isOpen = true
+    let callbacks = pending
+    pending.removeAll(keepingCapacity: false)
+    for callback in callbacks {
+      callback()
+    }
+    lock.unlock()
+  }
+}
 
 /// 线程安全的输出累积器。
 private final class OutputCollector: @unchecked Sendable {

@@ -23,5 +23,6 @@ let package = Package(
     ),
 
     .testTarget(name: "TartKitTests", dependencies: ["TartKit"]),
+    .testTarget(name: "TartUITests", dependencies: ["TartUI", "TartKit"]),
   ]
 )

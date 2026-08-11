@@ -96,15 +96,22 @@ struct StreamingTests {
 
     var stdoutLines: [String] = []
     var exitCode: Int32?
+    var processIdentifier: Int32?
+    var outputArrivedBeforeStart = false
 
     for try await event in executor.stream(args) {
       switch event {
-      case let .stdout(line): stdoutLines.append(line)
+      case let .started(pid): processIdentifier = pid
+      case let .stdout(line):
+        if processIdentifier == nil { outputArrivedBeforeStart = true }
+        stdoutLines.append(line)
       case .stderr: break
       case let .exited(code): exitCode = code
       }
     }
 
+    #expect(processIdentifier.map { $0 > 0 } == true)
+    #expect(!outputArrivedBeforeStart)
     #expect(stdoutLines == ["one", "two", "three"])
     #expect(exitCode == 0)
   }
@@ -157,6 +164,7 @@ struct StreamingTests {
     var stderr: [String] = []
     for try await event in executor.stream(args) {
       switch event {
+      case .started: break
       case let .stdout(line): stdout.append(line)
       case let .stderr(line): stderr.append(line)
       case .exited: break

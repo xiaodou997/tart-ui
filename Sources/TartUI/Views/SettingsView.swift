@@ -3,6 +3,7 @@ import TartKit
 
 struct SettingsView: View {
   let store: VMStore
+  let languageStore: AppLanguageStore
 
   @AppStorage(TartLocator.userOverrideDefaultsKey) private var binaryPath = ""
   @State private var isValidating = false
@@ -14,7 +15,23 @@ struct SettingsView: View {
   }
 
   var body: some View {
+    @Bindable var languageStore = languageStore
+
     Form {
+      Section {
+        Picker(L10n.text("Application Language"), selection: $languageStore.selection) {
+          ForEach(AppLanguage.allCases) { language in
+            Text(language.title).tag(language)
+          }
+        }
+      } header: {
+        Text(L10n.text("Language"))
+      } footer: {
+        Text(L10n.text("Language changes apply immediately. System Default follows the language selected for TartUI in macOS."))
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+
       Section {
         LabeledContent(L10n.text("Status")) {
           if let runtime = store.runtime {
@@ -134,7 +151,7 @@ struct SettingsView: View {
       }
     }
     .formStyle(.grouped)
-    .frame(width: 520, height: 400)
+    .frame(width: 560, height: 500)
     .onAppear {
       if binaryPath.isEmpty {
         binaryPath = TartLocator.storedUserOverride() ?? ""

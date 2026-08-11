@@ -40,7 +40,7 @@ the Tart helper Agent process
 
 TartUI keeps Tart as an independent executable and consumes its JSON output. Tart is compiled from a pinned Git submodule and placed inside `TartUI.app/Contents/Helpers/tart.app`. The helper remains a separate process so the upstream runtime can be updated without an in-process rewrite.
 
-The bundled helper is built as a macOS Agent, so the user sees one App and one Dock icon even though the VM runtime remains a separate process. Tart currently forces a regular activation policy for its native window; `Resources/tart-agent.patch` is therefore applied only during helper compilation and automatically reverted afterward. It is intentionally kept as a small, fail-fast integration boundary: if an upstream Tart update changes that lifecycle code, the build stops and the patch must be reviewed instead of silently bringing back a second Dock icon.
+The bundled helper is built as a macOS Agent, so the user sees one App and one Dock icon even though the VM runtime remains a separate process. Tart currently forces a regular activation policy for its native window; `Resources/tart-agent.patch` is therefore applied only during helper compilation and automatically reverted afterward. The same integration emits a private window-ready event after Tart creates the native VM window. TartUI uses that event to update the runtime state and bring the correct process window forward. The patch is intentionally kept as a small, fail-fast integration boundary: if an upstream Tart update changes that lifecycle code, the build stops and the patch must be reviewed instead of silently bringing back a second Dock icon or losing the window lifecycle signal.
 
 ## Requirements
 
@@ -130,7 +130,7 @@ The scheduled GitHub Actions workflow runs this check weekly and opens a pull re
 
 ## Localization
 
-English is the development and default language. Simplified Chinese is included as `zh-Hans`.
+English is the development language and the first-run default, independently of the macOS system language. Choose **TartUI > Settings > Language** to switch immediately between English, Simplified Chinese, and the macOS system language. The choice persists across launches.
 
 Localized UI resources live under:
 

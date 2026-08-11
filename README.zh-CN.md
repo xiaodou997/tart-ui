@@ -40,7 +40,7 @@ Tart helper Agent 进程
 
 TartUI 仍然把 Tart 作为独立可执行程序，通过 JSON 输出获取数据。Tart 源码由固定版本的 Git submodule 编译，然后放入 `TartUI.app/Contents/Helpers/tart.app`。helper 仍然是独立进程，便于跟随上游更新和在异常时恢复。
 
-内置 helper 会构建为 macOS Agent，因此用户只看到一个 App 和一个 Dock 图标，虚拟机 runtime 仍然是独立进程。Tart 当前会在原生窗口模式下强制使用 regular activation policy，所以构建 helper 时会临时应用 `Resources/tart-agent.patch`，编译结束后自动恢复 Tart 源码。这个补丁很小且会在上游代码不兼容时直接让构建失败，避免 Tart 更新后静默恢复第二个 Dock 图标。
+内置 helper 会构建为 macOS Agent，因此用户只看到一个 App 和一个 Dock 图标，虚拟机 runtime 仍然是独立进程。Tart 当前会在原生窗口模式下强制使用 regular activation policy，所以构建 helper 时会临时应用 `Resources/tart-agent.patch`，编译结束后自动恢复 Tart 源码。同一个集成补丁会在 Tart 创建原生 VM 窗口后发出内部窗口就绪事件，TartUI 据此更新运行状态并把正确的进程窗口置前。这个补丁很小且会在上游代码不兼容时直接让构建失败，避免 Tart 更新后静默恢复第二个 Dock 图标，或者丢失窗口生命周期信号。
 
 ## 环境要求
 
@@ -130,7 +130,7 @@ GitHub Actions 每周自动检查最新稳定版，如果有更新就创建 PR�
 
 ## 国际化
 
-英文是开发语言和默认语言，项目同时内置简体中文 `zh-Hans`。
+英文是开发语言，也是首次启动时的默认语言，不受 macOS 系统语言影响。打开 **TartUI > 设置 > 语言**，可以在英文、简体中文和跟随系统之间即时切换；选择结果会在下次启动时保留。
 
 本地化资源位于：
 

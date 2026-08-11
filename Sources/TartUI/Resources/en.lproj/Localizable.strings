@@ -29,6 +29,14 @@
 "Stopped" = "Stopped";
 "Unknown State" = "Unknown State";
 "No Output Yet" = "No Output Yet";
+"Preparing Tart runtime…" = "Preparing Tart runtime…";
+"Tart runtime started (PID %@)." = "Tart runtime started (PID %@).";
+"Waiting for the VM window…" = "Waiting for the VM window…";
+"VM window is ready." = "VM window is ready.";
+"Waiting for Window" = "Waiting for Window";
+"Show VM Window" = "Show VM Window";
+"The VM window is not ready yet." = "The VM window is not ready yet.";
+"The VM is running without a visible window. Use Show VM Window to bring it forward." = "The VM is running without a visible window. Use Show VM Window to bring it forward.";
 "Auto-scroll" = "Auto-scroll";
 "Show in Finder" = "Show in Finder";
 "Showing the latest %@ lines" = "Showing the latest %@ lines";
@@ -120,6 +128,11 @@
 "Credentials for this registry will be removed from the Keychain." = "Credentials for this registry will be removed from the Keychain.";
 "Options" = "Options";
 "Validate Credentials Before Login" = "Validate Credentials Before Login";
+
+"Application Language" = "Application Language";
+"Language" = "Language";
+"System Default" = "System Default";
+"Language changes apply immediately. System Default follows the language selected for TartUI in macOS." = "Language changes apply immediately. System Default follows the language selected for TartUI in macOS.";
 
 "TartUI can install the official Tart runtime for you." = "TartUI can install the official Tart runtime for you.";
 "Installing Tart…" = "Installing Tart…";

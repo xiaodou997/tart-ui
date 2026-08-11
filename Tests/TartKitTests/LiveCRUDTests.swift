@@ -35,6 +35,7 @@ struct LiveCRUDTests {
     var exitCode: Int32 = -1
     for try await event in client.create(name: originalName, source: .linux, diskSizeGB: 20) {
       switch event {
+      case .started: break
       case let .exited(code): exitCode = code
       case let .stderr(line):
         if line.lowercased().contains("error") { createFailed = line }

@@ -89,6 +89,8 @@ final class OperationCenter {
       do {
         for try await event in stream() {
           switch event {
+          case .started:
+            break
           case let .stdout(line):
             operation.append(line)
           case let .stderr(line):

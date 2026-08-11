@@ -28,6 +28,14 @@
 "Stopped" = "已停止";
 "Unknown State" = "状态未知";
 "No Output Yet" = "暂无输出";
+"Preparing Tart runtime…" = "正在准备 Tart 运行时…";
+"Tart runtime started (PID %@)." = "Tart 运行时已启动（PID %@）。";
+"Waiting for the VM window…" = "正在等待虚拟机窗口…";
+"VM window is ready." = "虚拟机窗口已就绪。";
+"Waiting for Window" = "等待窗口";
+"Show VM Window" = "显示虚拟机窗口";
+"The VM window is not ready yet." = "虚拟机窗口尚未就绪。";
+"The VM is running without a visible window. Use Show VM Window to bring it forward." = "虚拟机正在运行，但窗口尚未显示。请使用“显示虚拟机窗口”将它置于前台。";
 "Auto-scroll" = "自动滚动";
 "Show in Finder" = "在访达中显示";
 "Showing the latest %@ lines" = "显示最近 %@ 行";
@@ -119,6 +127,11 @@
 "Credentials for this registry will be removed from the Keychain." = "将从钥匙串中移除该仓库的凭据。";
 "Options" = "选项";
 "Validate Credentials Before Login" = "登录前验证凭据";
+
+"Application Language" = "应用语言";
+"Language" = "语言";
+"System Default" = "跟随系统";
+"Language changes apply immediately. System Default follows the language selected for TartUI in macOS." = "语言切换会立即生效。“跟随系统”使用 macOS 为 TartUI 选择的语言。";
 
 "TartUI can install the official Tart runtime for you." = "TartUI 可以为你安装官方 Tart 运行时。";
 "Installing Tart…" = "正在安装 Tart…";
