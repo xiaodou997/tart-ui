@@ -26,7 +26,7 @@ struct SessionLogView: View {
         StateChip(state: session.state)
         Spacer()
       }
-      Text(session.commandLine)
+      Text(session.equivalentCommandLine)
         .font(.system(.caption, design: .monospaced))
         .foregroundStyle(.secondary)
         .textSelection(.enabled)
@@ -106,22 +106,20 @@ private struct StateChip: View {
   private var label: String {
     switch state {
     case .starting: L10n.text("Starting")
-    case .waitingForWindow: L10n.text("Waiting for Window")
     case .stopping: L10n.text("Stopping")
     case .running: L10n.text("Running")
-    case let .exited(code): code == 0
-      ? L10n.text("Exited")
-      : L10n.format("Exited with code %@", String(code))
+    case .suspending: L10n.text("Suspending")
+    case .suspended: L10n.text("Suspended")
+    case .exited: L10n.text("Stopped")
     case .failed: L10n.text("Failed to Start")
     }
   }
 
   private var color: Color {
     switch state {
-    case .starting, .waitingForWindow: .orange
-    case .stopping: .orange
+    case .starting, .stopping, .suspending: .orange
     case .running: .green
-    case let .exited(code): code == 0 ? .secondary : .red
+    case .suspended, .exited: .secondary
     case .failed: .red
     }
   }

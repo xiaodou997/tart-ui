@@ -50,22 +50,22 @@ final class VMStore {
 
     do {
       let runtime = try TartLocator().resolve(userOverride: userOverride)
-      let client = TartClient(
-        runtime: runtime,
-        environment: TartRuntimeEnvironment.make()
-      )
+      // 内置 tart 现在只是个普通命令行工具，不需要任何身份标记环境变量。
+      let client = TartClient(runtime: runtime)
       self.tartVersion = try await client.version()
       self.runtime = runtime
       self.client = client
-      let runtimeService = TartVMRuntimeService(runtime: runtime, client: client)
+      // 虚拟机跑在本进程内，不再需要 runtime 适配器；这里的 TartClient 只
+      // 负责 list / clone / pull 这类一次性命令。
       self.runtimeSessions = VMRuntimeCoordinator(
-        runtime: runtimeService,
         onSessionFinished: { [weak self] _ in
           Task { @MainActor [weak self] in
             await self?.refresh()
           }
         }
       )
+      // bootstrap 可能在 App 注入 windowOpener 之后才跑完，这里补挂一次。
+      self.runtimeSessions?.onWindowRequested = windowOpener
       self.loadError = nil
       self.runtimeInstallError = nil
 
@@ -225,6 +225,17 @@ final class VMStore {
   }
 
   // MARK: - 生命周期操作
+
+  /// 打开虚拟机窗口的方式，由 App 层注入（SwiftUI 的 openWindow 只能在
+  /// 视图里取到）。协调器通过它把窗口叫出来，自己不依赖任何 UI 类型。
+  var windowOpener: (@MainActor @Sendable (String) -> Void)? {
+    didSet { runtimeSessions?.onWindowRequested = windowOpener }
+  }
+
+  /// 某台虚拟机是否要把 Cmd+Tab 这类系统快捷键送进客户机。
+  func capturesSystemKeys(for vmName: String) -> Bool {
+    runtimeSessions?.session(for: vmName)?.capturesSystemKeys ?? false
+  }
 
   func start(vmName: String, profile: RunProfile) {
     guard let runtimeSessions else { return }

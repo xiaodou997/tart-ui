@@ -13,6 +13,7 @@ struct TartUIApp: App {
   @State private var isPruning = false
 
   @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+  @Environment(\.openWindow) private var openWindow
 
   var body: some Scene {
     WindowGroup {
@@ -87,6 +88,15 @@ struct TartUIApp: App {
         AppDelegate.runningVMNamesProvider = { [store] in
           store.runtimeSessions?.activeVMNames ?? []
         }
+        // 进程退出前必须把虚拟机停稳：它们跑在本进程内，进程没了等于断电。
+        AppDelegate.shutdownAllVMs = { [store] in
+          await store.runtimeSessions?.shutdownAll()
+        }
+        // openWindow 只能从视图环境里取，注入给 store 后协调器才能把
+        // 虚拟机窗口叫出来，而不必自己知道 SwiftUI 的存在。
+        store.windowOpener = { vmName in
+          openWindow(id: Self.vmWindowID, value: vmName)
+        }
         let override = TartLocator.storedUserOverride()
         await store.bootstrap(userOverride: override?.isEmpty == false ? override : nil)
       }
@@ -115,12 +125,28 @@ struct TartUIApp: App {
       }
     }
 
+    // 每台运行中的虚拟机一个窗口，按虚拟机名索引。
+    //
+    // 窗口的开关与虚拟机生命周期完全解耦：关掉窗口只是关窗口，虚拟机继续
+    // 在后台跑，再点「显示虚拟机窗口」就回来了。上一版里窗口消失会给
+    // helper 发 SIGINT 把虚拟机关掉，那正是「反复重启开机画面」的根源。
+    WindowGroup(id: Self.vmWindowID, for: String.self) { $vmName in
+      if let vmName {
+        VMWindowView(vmName: vmName)
+          .environment(store)
+          .environment(\.locale, languageStore.locale)
+          .id(languageStore.selection)
+      }
+    }
+
     Settings {
       SettingsView(store: store, languageStore: languageStore)
         .id(languageStore.selection)
         .environment(\.locale, languageStore.locale)
     }
   }
+
+  static let vmWindowID = "vm-display"
 
   /// 从导出文件恢复虚拟机。
   private func importVM() {

@@ -235,7 +235,7 @@ struct VMDetailView: View {
         VStack(alignment: .leading, spacing: 2) {
           Text(L10n.format("Started by TartUI with profile \"%@\"", session.profileName))
             .font(.callout)
-          Text(session.commandLine)
+          Text(session.equivalentCommandLine)
             .font(.system(.caption, design: .monospaced))
             .foregroundStyle(.secondary)
             .textSelection(.enabled)
@@ -243,7 +243,7 @@ struct VMDetailView: View {
         }
         Spacer()
 
-        if session.displayDriverOwnsWindow, session.state.isActive {
+        if session.state.isActive {
           Button(L10n.text("Show VM Window")) {
             store.showWindow(vmName: session.vmName)
           }
@@ -252,12 +252,6 @@ struct VMDetailView: View {
         Button(L10n.text("Logs")) {
           isShowingLog = true
         }
-      }
-
-      if let warning = session.windowWarning {
-        Label(warning, systemImage: "exclamationmark.triangle.fill")
-          .font(.caption)
-          .foregroundStyle(.orange)
       }
 
       Divider()
@@ -277,15 +271,13 @@ struct VMDetailView: View {
   @ViewBuilder
   private func sessionBanner(session: VMRuntimeSession) -> some View {
     switch session.state {
-    case .starting, .waitingForWindow, .running, .stopping:
+    case .starting, .running, .stopping, .suspending:
       runningBanner(session: session)
     case let .failed(failure):
       failureBanner(failure: failure)
-    case let .exited(code) where code != 0:
-      failureBanner(
-        failure: VMRuntimeFailure(message: L10n.format("Exited with code %@", String(code)))
-      )
-    case .exited:
+    case .exited, .suspended:
+      // 进程内模式没有「退出码」：客户机正常停机就是停机，启动或运行期
+      // 出错会走上面的 .failed 分支，带着真正的错误信息。
       EmptyView()
     }
   }

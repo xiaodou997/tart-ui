@@ -1,35 +1,33 @@
 import Foundation
 import Observation
 import TartKit
+import TartVMCore
 
 /// TartUI 的虚拟机运行时协调器。
 ///
-/// 它是 UI 与 Tart 子进程之间唯一的生命周期边界：
-/// - UI 只提交启动计划；
-/// - 运行时服务负责执行 Tart；
-/// - 会话负责状态和日志；
-/// - 显示协调器负责窗口/显示驱动生命周期。
+/// 虚拟机在 TartUI 进程内运行：这里持有 `TartVirtualMachine`，启动、关机、
+/// 挂起都是直接的方法调用。之前那套「起子进程 → 解析 stdout → 发信号 →
+/// 靠退出码反推结果」的链路整个消失了，随之消失的还有它的失败模式——
+/// 窗口事件再也不可能把虚拟机关掉。
+///
+/// OCI 相关操作（pull / clone / push / list）仍然走 tart 命令行子进程。
+/// 那些是一次性命令，进程模型对它们是合适的。
 @Observable
 @MainActor
 final class VMRuntimeCoordinator {
   private(set) var sessions: [String: VMRuntimeSession] = [:]
   private(set) var finishedSessions: [VMRuntimeSession] = []
 
+  /// 正在运行的虚拟机对象，按虚拟机名索引。窗口通过这里拿到要渲染的对象。
+  private(set) var machines: [String: TartVirtualMachine] = [:]
+
   private var tasks: [String: Task<Void, Never>] = [:]
-  private var windowTimeoutTasks: [String: Task<Void, Never>] = [:]
-  private let runtime: any VMRuntimeService
-  private let displayCoordinator: VMDisplayCoordinator
   private let onSessionFinished: @MainActor @Sendable (VMRuntimeSession) -> Void
 
-  private static let windowReadyMarker = "TARTUI_EVENT:window-ready"
+  /// 请求打开某台虚拟机的窗口。由 App 层接上 SwiftUI 的 openWindow。
+  var onWindowRequested: (@MainActor @Sendable (String) -> Void)?
 
-  init(
-    runtime: any VMRuntimeService,
-    displayCoordinator: VMDisplayCoordinator = VMDisplayCoordinator(),
-    onSessionFinished: @escaping @MainActor @Sendable (VMRuntimeSession) -> Void = { _ in }
-  ) {
-    self.runtime = runtime
-    self.displayCoordinator = displayCoordinator
+  init(onSessionFinished: @escaping @MainActor @Sendable (VMRuntimeSession) -> Void = { _ in }) {
     self.onSessionFinished = onSessionFinished
   }
 
@@ -37,6 +35,10 @@ final class VMRuntimeCoordinator {
 
   func session(for vmName: String) -> VMRuntimeSession? {
     sessions[vmName]
+  }
+
+  func machine(for vmName: String) -> TartVirtualMachine? {
+    machines[vmName]
   }
 
   func isManaged(_ vmName: String) -> Bool {
@@ -56,66 +58,72 @@ final class VMRuntimeCoordinator {
   @discardableResult
   func start(vmName: String, profile: RunProfile) -> VMRuntimeSession {
     if let existing = sessions[vmName], existing.state.isActive {
+      // 已经在跑就只把窗口叫到前面，不重复启动。
+      showWindow(vmName: vmName)
       return existing
     }
 
-    let driver = TartDisplayDriver.forProfile(profile)
-    let plan = driver.makeLaunchPlan(vmName: vmName, profile: profile)
     let session = VMRuntimeSession(
-      launchPlan: plan,
+      vmName: vmName,
+      profileName: profile.name,
+      equivalentCommandLine: "tart " + profile.arguments(vmName: vmName).joined(separator: " "),
+      capturesSystemKeys: profile.captureSystemKeys,
       logFileURL: Self.logFileURL(for: vmName)
     )
     sessions[vmName] = session
-    displayCoordinator.sessionDidStart(session)
 
     tasks[vmName] = Task { [weak self] in
-      await self?.pump(session: session, plan: plan, vmName: vmName)
+      await self?.run(session: session, vmName: vmName, profile: profile)
     }
 
     return session
   }
 
-  private func pump(
-    session: VMRuntimeSession,
-    plan: VMRuntimeLaunchPlan,
-    vmName: String
-  ) async {
+  private func run(session: VMRuntimeSession, vmName: String, profile: RunProfile) async {
+    let machine: TartVirtualMachine
     do {
-      for try await event in runtime.start(plan: plan) {
-        switch event {
-        case let .started(processIdentifier):
-          session.markProcessStarted(processIdentifier: processIdentifier)
-          if session.displayDriverOwnsWindow, !session.isWindowReady {
-            scheduleWindowTimeout(for: session, vmName: vmName)
-          }
-        case let .stdout(line):
-          if session.state == .starting { session.markRunning() }
-          session.append(line, isError: false)
-        case let .stderr(line):
-          if line == Self.windowReadyMarker {
-            windowTimeoutTasks.removeValue(forKey: vmName)?.cancel()
-            session.markWindowReady()
-            displayCoordinator.sessionWindowDidBecomeReady(session)
-            continue
-          }
-          if session.state == .starting { session.markRunning() }
-          // Tart 把正常的启动进度也写在 stderr 上，保留来源但不直接判定失败。
-          session.append(line, isError: true)
-        case let .exited(code):
-          session.markExited(code: code)
-        }
-      }
+      machine = try TartVirtualMachine(
+        localVMNamed: vmName,
+        options: profile.tartVMOptions()
+      )
+    } catch {
+      session.markFailed(error: error)
+      retire(vmName: vmName)
+      return
+    }
 
-      // 流正常结束但没有退出事件时，按正常退出处理。
-      if session.state.isActive {
-        session.markExited(code: 0)
+    machines[vmName] = machine
+    let wasSuspended = machine.hasSuspendedState
+
+    do {
+      try await machine.start(recovery: profile.recovery)
+    } catch {
+      session.markFailed(error: error)
+      retire(vmName: vmName)
+      return
+    }
+
+    if wasSuspended {
+      session.markResumedFromSuspend()
+    } else {
+      session.markRunning()
+    }
+
+    // 窗口在虚拟机确实起来之后才打开。开得太早会先闪一个黑框，
+    // 但更重要的是：现在窗口的开与关跟虚拟机生命周期完全无关，
+    // 顺序只影响观感，不影响正确性。
+    if !profile.noGraphics {
+      onWindowRequested?(vmName)
+    }
+
+    do {
+      // 一直挂起到客户机自己停下来（关机、崩溃、或我们调用了 stop）。
+      try await machine.waitUntilStopped()
+      if session.state != .suspending {
+        session.markExited()
       }
     } catch is CancellationError {
-      // 取消由用户触发时，底层 TartExecutor 会终止子进程；如果没有收到退出事件，
-      // 仍然把会话收束掉，避免 UI 永远停在 Starting。
-      if session.state.isActive {
-        session.markExited(code: 0)
-      }
+      session.markExited()
     } catch {
       session.markFailed(error: error)
     }
@@ -126,8 +134,7 @@ final class VMRuntimeCoordinator {
   private func retire(vmName: String) {
     guard let session = sessions[vmName], !session.state.isActive else { return }
     tasks.removeValue(forKey: vmName)
-    windowTimeoutTasks.removeValue(forKey: vmName)?.cancel()
-    displayCoordinator.sessionDidFinish(session)
+    machines.removeValue(forKey: vmName)
     finishedSessions.append(session)
 
     if finishedSessions.count > 20 {
@@ -136,48 +143,83 @@ final class VMRuntimeCoordinator {
     onSessionFinished(session)
   }
 
-  private func scheduleWindowTimeout(for session: VMRuntimeSession, vmName: String) {
-    windowTimeoutTasks.removeValue(forKey: vmName)?.cancel()
-    windowTimeoutTasks[vmName] = Task { @MainActor [weak session] in
-      try? await Task.sleep(for: .seconds(8))
-      guard !Task.isCancelled, let session else { return }
-      session.markWindowWaitTimedOut()
-    }
-  }
-
   // MARK: - 停止
 
-  /// 请求虚拟机正常关机；只有 TartUI 自己管理的会话才会进入 stopping 状态。
+  /// 请求客户机正常关机。
+  ///
+  /// 客户机可以拒绝（比如有未保存的文档弹了确认框），所以这个方法返回
+  /// 不代表已经关机；真正结束时 `run` 里的 `waitUntilStopped()` 会返回。
   func stop(vmName: String, timeout: UInt? = nil) async throws {
-    let session = sessions[vmName]
-    if session?.state.isActive == true {
-      session?.markStopping()
-    }
+    guard let machine = machines[vmName], let session = sessions[vmName] else { return }
+    session.markStopping()
 
     do {
-      try await runtime.stop(vmName: vmName, timeout: timeout)
+      try machine.requestStop()
     } catch {
-      // stop 命令失败时恢复可重试状态，保留原始错误交给上层展示。
-      if session?.state == .stopping {
-        session?.markRunning()
-      }
+      session.markRunning()
       throw error
     }
   }
 
+  /// 把状态存盘并停机。下次启动会自动从该状态恢复。
   func suspend(vmName: String) async throws {
-    try await runtime.suspend(vmName: vmName)
+    guard let machine = machines[vmName], let session = sessions[vmName] else { return }
+    session.markSuspending()
+
+    do {
+      try await machine.suspendToDisk()
+      session.markSuspended()
+    } catch {
+      session.markFailed(error: error)
+      throw error
+    }
   }
 
-  /// 强制终止 TartUI 自己启动的进程，等同于断电。
+  /// 在应用退出前把所有虚拟机停稳。
+  ///
+  /// 顺序是有意的：能挂起就挂起（状态存盘，下次启动原样恢复），挂不了才
+  /// 断电。直接让进程退出等于对每台虚拟机拔电源，而客户机被反复硬断电会
+  /// 损坏它自己的文件系统——这不是假设，本项目就是这么弄坏过一台虚拟机的。
+  func shutdownAll() async {
+    let names = activeVMNames
+    guard !names.isEmpty else { return }
+
+    // 顺序停：退出路径上并发没有意义，而且同时写多台虚拟机的状态文件只会
+    // 让磁盘更慢，反而拉长了「进程可能被强杀」的危险窗口。
+    for vmName in names {
+      guard let machine = machines[vmName] else { continue }
+      let session = sessions[vmName]
+
+      do {
+        // 挂起要求虚拟机是 suspendable 配置；不满足时会抛错，走下面的兜底。
+        session?.markSuspending()
+        try await machine.suspendToDisk()
+        session?.markSuspended()
+      } catch {
+        // 退而求其次：VZ 层面的干净停止仍会把磁盘缓冲刷干净，
+        // 比进程被杀掉安全得多。
+        try? await machine.stopImmediately()
+        session?.markExited()
+      }
+      retire(vmName: vmName)
+    }
+  }
+
+  /// 立即断电。未保存的数据会丢失。
   func forceTerminate(vmName: String) {
-    tasks[vmName]?.cancel()
+    guard let machine = machines[vmName] else { return }
+    Task { [weak self] in
+      try? await machine.stopImmediately()
+      self?.sessions[vmName]?.markExited()
+      self?.retire(vmName: vmName)
+    }
   }
 
   @discardableResult
   func showWindow(vmName: String) -> Bool {
     guard let session = sessions[vmName], session.state.isActive else { return false }
-    return displayCoordinator.bringWindowForward(session)
+    onWindowRequested?(vmName)
+    return true
   }
 
   func dismissFinished(_ session: VMRuntimeSession) {

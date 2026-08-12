@@ -3,23 +3,29 @@ import Observation
 
 /// 一次由 TartUI 管理的虚拟机运行会话。
 ///
-/// 会话只保存状态、启动计划和日志；进程的启动与停止由
-/// VMRuntimeCoordinator 负责，显示行为由 VMDisplayDriver 描述。
+/// 虚拟机跑在 TartUI 进程内，所以会话不再有子进程 PID，也不再靠解析
+/// stdout 猜状态：每次状态变化都由一次明确的方法调用推动。
+///
+/// 「等待窗口」这个状态也一并消失了。窗口由 TartUI 自己创建，不存在
+/// 「虚拟机起来了但窗口没出现」的中间态，更不存在窗口事件反过来把
+/// 虚拟机关掉的可能。
 @Observable
 @MainActor
 final class VMRuntimeSession: Identifiable {
   enum State: Equatable {
     case starting
-    case waitingForWindow
     case running
     case stopping
-    case exited(code: Int32)
+    case suspending
+    /// 已挂起，状态存在磁盘上，下次启动会自动恢复。
+    case suspended
+    case exited
     case failed(VMRuntimeFailure)
 
     var isActive: Bool {
       switch self {
-      case .starting, .waitingForWindow, .running, .stopping: true
-      case .exited, .failed: false
+      case .starting, .running, .stopping, .suspending: true
+      case .suspended, .exited, .failed: false
       }
     }
   }
@@ -28,103 +34,87 @@ final class VMRuntimeSession: Identifiable {
   let vmName: String
   let profileName: String
   let startedAt: Date
-  let launchPlan: VMRuntimeLaunchPlan
   let logFileURL: URL?
 
-  var commandLine: String { launchPlan.commandLine }
-  var displayMode: VMDisplayMode { launchPlan.displayMode }
-  var displayDriverOwnsWindow: Bool { displayMode == .nativeWindow }
+  /// 是否把 Cmd+Tab 这类系统快捷键送进客户机。
+  ///
+  /// 记在会话上而不是事后去查 profile：profile 可能在虚拟机运行期间被改，
+  /// 而窗口的行为应该跟着这次启动时的设置走。
+  let capturesSystemKeys: Bool
+
+  /// 与本次启动等效的 tart 命令行，只用于展示和排查。
+  ///
+  /// TartUI 不再执行它——虚拟机是进程内起的——但把它显示出来，用户就能
+  /// 在终端复现同一次启动，这在报 bug 时很有用。
+  let equivalentCommandLine: String
 
   private(set) var state: State = .starting
   private(set) var endedAt: Date?
   private(set) var recentLines: [LogLine] = []
-  private(set) var processIdentifier: Int32?
-  private(set) var isWindowReady = false
-  private(set) var windowWarning: String?
 
   private let maxRetainedLines = 2000
   private var logHandle: FileHandle?
 
-  init(launchPlan: VMRuntimeLaunchPlan, logFileURL: URL?) {
-    self.vmName = launchPlan.vmName
-    self.profileName = launchPlan.profileName
+  init(
+    vmName: String,
+    profileName: String,
+    equivalentCommandLine: String,
+    capturesSystemKeys: Bool,
+    logFileURL: URL?
+  ) {
+    self.vmName = vmName
+    self.profileName = profileName
     self.startedAt = Date()
-    self.launchPlan = launchPlan
+    self.equivalentCommandLine = equivalentCommandLine
+    self.capturesSystemKeys = capturesSystemKeys
     self.logFileURL = logFileURL
 
     if let logFileURL {
       logHandle = Self.openLogFile(at: logFileURL)
     }
-    appendLifecycle("$ \(launchPlan.commandLine)")
-    appendLifecycle(L10n.text("Preparing Tart runtime…"))
+    appendLifecycle("$ \(equivalentCommandLine)")
+    appendLifecycle(L10n.text("Starting the virtual machine…"))
   }
 
   // MARK: - 状态
 
-  func markProcessStarted(processIdentifier: Int32) {
-    guard state.isActive else { return }
-    self.processIdentifier = processIdentifier
-    appendLifecycle(L10n.format("Tart runtime started (PID %@).", String(processIdentifier)))
-
-    if displayDriverOwnsWindow, !isWindowReady {
-      state = .waitingForWindow
-      appendLifecycle(L10n.text("Waiting for the VM window…"))
-    } else if state != .stopping {
-      markRunning()
-    }
-  }
-
   func markRunning() {
-    guard state == .starting || state == .waitingForWindow || state == .stopping else { return }
+    guard state == .starting else { return }
     state = .running
+    appendLifecycle(L10n.text("The virtual machine is running."))
   }
 
-  func markWindowReady() {
-    guard state.isActive else { return }
-    isWindowReady = true
-    windowWarning = nil
-    if state != .stopping {
-      state = .running
-    }
-    appendLifecycle(L10n.text("VM window is ready."))
-  }
-
-  func markWindowWaitTimedOut() {
-    guard state == .waitingForWindow else { return }
-    let message = L10n.text("The VM is running without a visible window. Use Show VM Window to bring it forward.")
+  func markResumedFromSuspend() {
+    guard state == .starting else { return }
     state = .running
-    windowWarning = message
-    appendLifecycle(message)
+    appendLifecycle(L10n.text("Resumed from the suspended state."))
   }
 
   func markStopping() {
-    guard state.isActive else { return }
+    guard state == .running else { return }
     state = .stopping
+    appendLifecycle(L10n.text("Asking the guest to shut down…"))
   }
 
-  func append(_ line: String, isError: Bool) {
-    let entry = LogLine(text: line, isError: isError, isLifecycle: false)
-    append(entry)
+  func markSuspending() {
+    guard state == .running else { return }
+    state = .suspending
+    appendLifecycle(L10n.text("Saving the virtual machine state…"))
   }
 
-  private func appendLifecycle(_ line: String) {
-    append(LogLine(text: line, isError: false, isLifecycle: true))
-  }
-
-  private func append(_ entry: LogLine) {
-    recentLines.append(entry)
-    if recentLines.count > maxRetainedLines {
-      recentLines.removeFirst(recentLines.count - maxRetainedLines)
-    }
-
-    writeToFile(entry)
-  }
-
-  func markExited(code: Int32) {
+  func markSuspended() {
     guard state.isActive else { return }
-    state = .exited(code: code)
+    state = .suspended
     endedAt = Date()
-    appendLifecycle(L10n.format("Process exited with code %@", String(code)))
+    appendLifecycle(L10n.text("The virtual machine is suspended."))
+    closeLogFile()
+  }
+
+  func markExited() {
+    guard state.isActive else { return }
+    state = .exited
+    endedAt = Date()
+    appendLifecycle(L10n.text("The virtual machine has stopped."))
     closeLogFile()
   }
 
@@ -141,6 +131,23 @@ final class VMRuntimeSession: Identifiable {
   }
 
   // MARK: - 日志
+
+  func append(_ line: String, isError: Bool) {
+    append(LogLine(text: line, isError: isError, isLifecycle: false))
+  }
+
+  private func appendLifecycle(_ line: String) {
+    append(LogLine(text: line, isError: false, isLifecycle: true))
+  }
+
+  private func append(_ entry: LogLine) {
+    recentLines.append(entry)
+    if recentLines.count > maxRetainedLines {
+      recentLines.removeFirst(recentLines.count - maxRetainedLines)
+    }
+
+    writeToFile(entry)
+  }
 
   private static func openLogFile(at url: URL) -> FileHandle? {
     let fileManager = FileManager.default
