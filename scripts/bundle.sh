@@ -49,49 +49,20 @@ for resource_bundle in "$BIN_PATH"/TartUI_*.bundle; do
   [ -d "$resource_bundle" ] && cp -R "$resource_bundle" "$APP_DIR/Contents/Resources/"
 done
 
-# Tart 是内置 runtime，放在隐藏的嵌套 .app 中。这样可以把 Apple provisioning
-# profile 放在 helper 的 Contents/embedded.provisionprofile，同时让 TartUI 成为
-# 唯一用户级应用。helper 的 LSUIElement 不是临时藏图标，而是 runtime Agent 的
-# 明确产品边界：Tart 负责虚拟机窗口，TartUI 负责应用入口和生命周期。
-# 开发时默认使用旁边的 ../tart，发布时使用 Vendor/tart。
-TART_HELPER_APP="$APP_DIR/Contents/Helpers/tart.app"
-TART_HELPER_BINARY="$TART_HELPER_APP/Contents/MacOS/tart"
+# 内置的 tart 只是个命令行工具，负责 OCI 操作（pull / clone / list / prune）。
+# 虚拟机跑在 TartUI 进程内，所以这里不再需要嵌套 .app、LSUIElement、
+# provisioning profile 或任何 entitlement——普通二进制即可。
+TART_HELPER_BINARY="$APP_DIR/Contents/Helpers/tart"
 if [ "${TARTUI_SKIP_TART_HELPER:-0}" = "1" ]; then
-  echo "警告：已跳过内置 Tart helper（TARTUI_SKIP_TART_HELPER=1）"
+  echo "警告：已跳过内置 Tart helper（TARTUI_SKIP_TART_HELPER=1），OCI 操作将依赖系统 Tart"
 else
+  # 以前这里失败只在 debug 下打一行警告，然后 App 悄悄退回去用系统 tart。
+  # 结果「跑的到底是哪一份 tart」从现象上分辨不出来，排查时极具误导性。
+  # 现在一律硬失败：要跳过就显式设 TARTUI_SKIP_TART_HELPER=1。
   if ! "$ROOT/scripts/build-tart-helper.sh" "$CONFIG" "$TART_HELPER_BINARY"; then
-    if [ "$CONFIG" = "release" ]; then
-      echo "错误：release 版本必须包含内置 Tart helper" >&2
-      exit 1
-    fi
-    echo "警告：debug 版本没有内置 Tart helper，可通过 TARTUI_TART_BINARY 或系统 Tart 运行"
-  else
-    TART_HELPER_BUNDLE_ID="${TARTUI_TART_HELPER_BUNDLE_ID:-com.tartui.tart-helper}"
-    TART_HELPER_VERSION="${TARTUI_TART_HELPER_VERSION:-$VERSION}"
-    cat > "$TART_HELPER_APP/Contents/Info.plist" <<PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>CFBundleExecutable</key>
-  <string>tart</string>
-  <key>CFBundleIdentifier</key>
-  <string>$TART_HELPER_BUNDLE_ID</string>
-  <key>CFBundleName</key>
-  <string>Tart</string>
-  <key>CFBundlePackageType</key>
-  <string>APPL</string>
-  <key>LSUIElement</key>
-  <true/>
-  <key>CFBundleShortVersionString</key>
-  <string>$TART_HELPER_VERSION</string>
-  <key>CFBundleVersion</key>
-  <string>$TART_HELPER_VERSION</string>
-  <key>LSMinimumSystemVersion</key>
-  <string>14.0</string>
-</dict>
-</plist>
-PLIST
+    echo "错误：内置 Tart helper 构建失败" >&2
+    echo "      如需临时跳过，请显式设置 TARTUI_SKIP_TART_HELPER=1" >&2
+    exit 1
   fi
 fi
 
@@ -187,67 +158,64 @@ fi
 
 detect_signing_identity
 
-# Tart 的 Virtualization entitlement 属于 helper，不属于 UI 进程。先签完整的内层
-# helper App（而不是只签它的 Mach-O 文件），再签外层 App；不要用 codesign --deep
-# 给外层重新覆盖 helper 的 entitlement。
-TART_HELPER="$TART_HELPER_BINARY"
-if [ -x "$TART_HELPER" ]; then
-  TART_SOURCE_FOR_SIGNING="${TARTUI_TART_SOURCE_DIR:-}"
-  if [ -z "$TART_SOURCE_FOR_SIGNING" ] && [ -f "$ROOT/Vendor/tart/Resources/tart-prod.entitlements" ]; then
-    TART_SOURCE_FOR_SIGNING="$ROOT/Vendor/tart"
-  elif [ -z "$TART_SOURCE_FOR_SIGNING" ] && [ -f "$ROOT/../tart/Resources/tart-prod.entitlements" ]; then
-    TART_SOURCE_FOR_SIGNING="$ROOT/../tart"
-  fi
+# 虚拟化 entitlement 现在属于 TartUI 本体：虚拟机在 TartUI 进程内创建，
+# 权限必须挂在这个进程上。内置的 tart 只做 OCI 操作，不需要任何 entitlement。
+#
+# 先签内层 helper（普通签名即可），再签外层 App 并附上 entitlement。
+# 不要用 --deep，它会用外层的 entitlement 覆盖内层签名。
+if [ -x "$TART_HELPER_BINARY" ]; then
+  echo "==> 签名 Tart helper（无 entitlement）"
+  codesign --force --sign "$SIGN_IDENTITY" "$TART_HELPER_BINARY"
+fi
 
-  TART_ENTITLEMENTS="${TARTUI_TART_ENTITLEMENTS:-}"
-  if [ -z "$TART_ENTITLEMENTS" ] && [ -f "$ROOT/Resources/tart-prod.entitlements" ]; then
-    TART_ENTITLEMENTS="$ROOT/Resources/tart-prod.entitlements"
-  fi
-  if [ -z "$TART_ENTITLEMENTS" ] && [ -n "$TART_SOURCE_FOR_SIGNING" ]; then
-    TART_ENTITLEMENTS="$TART_SOURCE_FOR_SIGNING/Resources/tart-prod.entitlements"
-  fi
-
-  # Tart 上游的本地运行脚本使用 dev entitlement；生产 entitlement 中的网络权限
-  # 需要正式签名身份。ad-hoc 场景继续支持本机开发，但不能把 prod entitlement
-  # 硬塞给一个没有 Team ID 的签名对象，否则 macOS 会在启动时直接 kill helper。
-  if [ "$SIGN_IDENTITY" = "-" ]; then
-    TART_DEV_ENTITLEMENTS="${TARTUI_TART_DEV_ENTITLEMENTS:-}"
-    if [ -z "$TART_DEV_ENTITLEMENTS" ] && [ -f "$ROOT/Resources/tart-dev.entitlements" ]; then
-      TART_DEV_ENTITLEMENTS="$ROOT/Resources/tart-dev.entitlements"
-    fi
-    if [ -z "$TART_DEV_ENTITLEMENTS" ] && [ -n "$TART_SOURCE_FOR_SIGNING" ]; then
-      TART_DEV_ENTITLEMENTS="$TART_SOURCE_FOR_SIGNING/Resources/tart-dev.entitlements"
-    fi
-    if [ -f "$TART_DEV_ENTITLEMENTS" ]; then
-      TART_ENTITLEMENTS="$TART_DEV_ENTITLEMENTS"
-    fi
-  fi
-
-  if [ "$SIGN_IDENTITY" != "-" ]; then
-    TART_PROVISION_PROFILE="$(find_tart_provisioning_profile "$ROOT" || true)"
-    if [ -z "$TART_PROVISION_PROFILE" ]; then
-      echo "错误：正式签名 Tart helper 需要 TARTUI_TART_PROVISION_PROFILE，且必须匹配 $TART_HELPER_BUNDLE_ID" >&2
-      exit 1
-    fi
-    echo "==> 嵌入 Tart provisioning profile：$TART_PROVISION_PROFILE"
-    cp "$TART_PROVISION_PROFILE" "$TART_HELPER_APP/Contents/embedded.provisionprofile"
-  fi
-
-  echo "==> 签名 Tart helper app"
-  if [ -f "$TART_ENTITLEMENTS" ]; then
-    codesign --force --sign "$SIGN_IDENTITY" --entitlements "$TART_ENTITLEMENTS" "$TART_HELPER_APP"
+# debug 用 Apple Development 证书就能满足的最小权限集；release 额外声明
+# com.apple.vm.networking（桥接网络），那是受限权限，需要 Apple 单独授权
+# 和匹配的 provisioning profile。
+TARTUI_ENTITLEMENTS="${TARTUI_ENTITLEMENTS:-}"
+if [ -z "$TARTUI_ENTITLEMENTS" ]; then
+  if [ "$CONFIG" = "debug" ]; then
+    TARTUI_ENTITLEMENTS="$ROOT/Resources/TartUI-dev.entitlements"
   else
-    echo "警告：没有找到 Tart entitlement 文件，使用普通签名"
-    codesign --force --sign "$SIGN_IDENTITY" "$TART_HELPER_APP"
+    TARTUI_ENTITLEMENTS="$ROOT/Resources/TartUI-prod.entitlements"
   fi
 fi
 
-echo "==> 签名（${SIGN_DESCRIPTION}）"
-if ! codesign --force --sign "$SIGN_IDENTITY" "$APP_DIR" 2>/dev/null; then
-  echo "警告：使用 ${SIGN_IDENTITY} 签名失败，回退到临时签名"
-  codesign --force --sign - "$APP_DIR" 2>/dev/null \
-    || echo "警告：签名失败，App 可能无法启动"
+if [ ! -f "$TARTUI_ENTITLEMENTS" ]; then
+  echo "错误：找不到 entitlement 文件：$TARTUI_ENTITLEMENTS" >&2
+  echo "      没有 com.apple.security.virtualization，TartUI 无法创建虚拟机。" >&2
+  exit 1
 fi
+
+# release 声明了受限的 com.apple.vm.networking，必须有匹配的 provisioning
+# profile，否则 AMFI 会在启动时终止进程——而且现象是「App 一闪就没了」，
+# 很难反查。这里提前拦住。
+if [ "$CONFIG" != "debug" ] && grep -q "com.apple.vm.networking" "$TARTUI_ENTITLEMENTS"; then
+  TARTUI_PROVISION_PROFILE="${TARTUI_PROVISION_PROFILE:-}"
+  if [ -z "$TARTUI_PROVISION_PROFILE" ]; then
+    echo "错误：$TARTUI_ENTITLEMENTS 声明了受限权限 com.apple.vm.networking，" >&2
+    echo "      必须通过 TARTUI_PROVISION_PROFILE 提供匹配 $BUNDLE_ID 的 provisioning profile。" >&2
+    echo "      若尚未获得 Apple 授权，请注释掉该权限（NAT 网络不受影响）。" >&2
+    exit 1
+  fi
+  echo "==> 嵌入 provisioning profile：$TARTUI_PROVISION_PROFILE"
+  cp "$TARTUI_PROVISION_PROFILE" "$APP_DIR/Contents/embedded.provisionprofile"
+fi
+
+echo "==> 签名（${SIGN_DESCRIPTION}）：$(basename "$TARTUI_ENTITLEMENTS")"
+# 签名失败以前会回退到临时签名再回退到「什么都不做」，于是构建「成功」但
+# App 起不来或没有虚拟化权限。签名是硬要求，失败就停。
+if ! codesign --force --sign "$SIGN_IDENTITY" --entitlements "$TARTUI_ENTITLEMENTS" "$APP_DIR"; then
+  echo "错误：签名失败。没有有效签名和虚拟化 entitlement，TartUI 无法创建虚拟机。" >&2
+  exit 1
+fi
+
+# 签完立刻核对 entitlement 真的进去了。codesign 在某些证书/权限组合下会
+# 静默丢弃条目，等到运行时才炸。
+if ! codesign -d --entitlements - --xml "$APP_DIR" 2>/dev/null | grep -q "com.apple.security.virtualization"; then
+  echo "错误：签名后的 App 缺少 com.apple.security.virtualization" >&2
+  exit 1
+fi
+echo "    已确认虚拟化 entitlement 生效"
 
 echo "==> 完成：$APP_DIR"
 echo "    运行：open \"$APP_DIR\""

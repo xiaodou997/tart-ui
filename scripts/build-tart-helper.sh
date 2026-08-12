@@ -1,13 +1,14 @@
 #!/bin/bash
 #
-# 编译或选取 Tart helper，供 bundle.sh 放入隐藏的
-# TartUI.app/Contents/Helpers/tart.app。
+# 编译内置的 tart 命令行 helper，供 bundle.sh 放进
+# TartUI.app/Contents/Helpers/tart。
 #
-# Tart 保持独立的 Swift Package，不作为 TartUI 的依赖 target；这样上游更新时
-# 只需要更新固定的 Tart commit，不需要修改 Tart 源码或把它重构成 library。
+# 这个 helper 只负责 OCI 相关的一次性命令：pull / clone / push / list /
+# prune / export。虚拟机本身跑在 TartUI 进程内（见 Sources/TartVMCore），
+# 所以 helper 既不需要虚拟化 entitlement，也不需要任何窗口或 Dock 处理，
+# 更不需要给上游打补丁。
 #
 # 用法：./scripts/build-tart-helper.sh [debug|release] <output-path>
-# output-path 通常是 TartUI.app/Contents/Helpers/tart.app/Contents/MacOS/tart。
 
 set -euo pipefail
 
@@ -15,91 +16,52 @@ CONFIG="${1:-debug}"
 OUTPUT="${2:?missing output path}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-resolve_binary() {
-  local candidate="$1"
-  if [ -d "$candidate" ]; then
-    if [ -x "$candidate/Contents/MacOS/tart" ]; then
-      echo "$candidate/Contents/MacOS/tart"
-      return 0
-    fi
-    if [ -x "$candidate/tart" ]; then
-      echo "$candidate/tart"
-      return 0
-    fi
-  elif [ -x "$candidate" ]; then
-    echo "$candidate"
-    return 0
-  fi
-  return 1
-}
+# 只认 submodule。以前还会回退到旁边的 ../tart，结果本机同时存在两份不同
+# 版本的源码，构建出来的 helper 到底是哪一份完全看不出来——排查问题时这是
+# 个纯粹的干扰项，不如直接不允许。
+TART_SOURCE_DIR="${TARTUI_TART_SOURCE_DIR:-$ROOT/Vendor/tart}"
 
-TART_SOURCE_DIR="${TARTUI_TART_SOURCE_DIR:-}"
-if [ -z "$TART_SOURCE_DIR" ]; then
-  if [ -f "$ROOT/Vendor/tart/Package.swift" ]; then
-    TART_SOURCE_DIR="$ROOT/Vendor/tart"
-  elif [ -f "$ROOT/../tart/Package.swift" ]; then
-    TART_SOURCE_DIR="$ROOT/../tart"
-  fi
-fi
-
-TART_BINARY="${TARTUI_TART_BINARY:-}"
-if [ -n "$TART_BINARY" ]; then
-  if ! TART_BINARY="$(resolve_binary "$TART_BINARY")"; then
-    echo "错误：TARTUI_TART_BINARY 不是可执行的 Tart：$TARTUI_TART_BINARY" >&2
-    exit 1
-  fi
-elif [ -n "$TART_SOURCE_DIR" ]; then
-  TART_SOURCE_DIR="$(cd "$TART_SOURCE_DIR" && pwd)"
-  echo "==> 构建 Tart helper（${CONFIG}）：$TART_SOURCE_DIR"
-
-  # Tart 原生窗口模式会主动设置 .regular，单靠 LSUIElement 无法隐藏 helper
-  # 的 Dock 图标。这里只对构建过程临时应用一个最小集成补丁，并在退出时恢复
-  # 上游源码；Vendor/tart 本身不会留下修改。上游更新导致补丁无法套用时，
-  # 构建直接失败，避免静默退回双 Dock 图标。
-  AGENT_PATCH="$ROOT/Resources/tart-agent.patch"
-  AGENT_SOURCE="$TART_SOURCE_DIR/Sources/tart/Commands/Run.swift"
-  AGENT_PATCH_APPLIED=0
-  restore_agent_patch() {
-    if [ "$AGENT_PATCH_APPLIED" = "1" ]; then
-      git -C "$TART_SOURCE_DIR" apply --reverse "$AGENT_PATCH" >/dev/null 2>&1 || {
-        echo "错误：无法恢复 Tart Agent 集成补丁，请检查 $AGENT_SOURCE" >&2
-        exit 1
-      }
-      AGENT_PATCH_APPLIED=0
-    fi
-  }
-  trap restore_agent_patch EXIT INT TERM
-
-  if git -C "$TART_SOURCE_DIR" apply --check "$AGENT_PATCH" >/dev/null 2>&1; then
-    git -C "$TART_SOURCE_DIR" apply "$AGENT_PATCH"
-    AGENT_PATCH_APPLIED=1
-    echo "==> 临时应用 TartUI Agent 集成补丁"
-  elif git -C "$TART_SOURCE_DIR" apply --reverse --check "$AGENT_PATCH" >/dev/null 2>&1; then
-    echo "==> Tart 源码已包含 Agent 集成补丁"
-  else
-    echo "错误：当前 Tart 版本无法应用 TartUI Agent 集成补丁：$AGENT_PATCH" >&2
-    echo "      请检查上游 Run.swift 的 AppDelegate 生命周期，再更新补丁。" >&2
-    exit 1
-  fi
-
-  export CLANG_MODULE_CACHE_PATH="${CLANG_MODULE_CACHE_PATH:-$TART_SOURCE_DIR/.build/clang-module-cache}"
-  export SWIFT_MODULECACHE_PATH="${SWIFT_MODULECACHE_PATH:-$TART_SOURCE_DIR/.build/swift-module-cache}"
-
-  swift build \
-    --package-path "$TART_SOURCE_DIR" \
-    -c "$CONFIG" \
-    --product tart
-
-  TART_BIN_PATH="$(swift build --package-path "$TART_SOURCE_DIR" -c "$CONFIG" --product tart --show-bin-path)"
-  TART_BINARY="$TART_BIN_PATH/tart"
-  restore_agent_patch
-  trap - EXIT INT TERM
-else
-  echo "错误：没有找到 Tart 源码。请初始化 Vendor/tart，或设置 TARTUI_TART_BINARY。" >&2
+if [ ! -f "$TART_SOURCE_DIR/Package.swift" ]; then
+  echo "错误：找不到 Tart 源码：$TART_SOURCE_DIR" >&2
+  echo "      请先执行 git submodule update --init --recursive" >&2
   exit 1
 fi
 
+TART_SOURCE_DIR="$(cd "$TART_SOURCE_DIR" && pwd)"
+echo "==> 构建 Tart helper（${CONFIG}）：$TART_SOURCE_DIR"
+
+# 上游用 .ci/set-version.sh 在发布时把 CI.swift 里的 ${VERSION} 占位符替换掉，
+# 我们直接编译源码，不走那条发布流程。占位符没被替换时 CI.version 会变成
+# 字符串 "SNAPSHOT"，而这个值会通过一个名为 tart-version-<版本> 的 console
+# 设备传给客户机的 guest agent 做特性检查——agent 读到无法解析的版本，就会
+# 每隔十几秒重启一次客户机（现象：进桌面几秒后回到开机画面）。
+#
+# 进程内运行时（Sources/TartVMCore/TartVersion.swift）已经绕开了上游的
+# CI.swift，这里检查的是 helper 二进制，确保两边版本号一致。
+TART_VERSION="$(git -C "$TART_SOURCE_DIR" describe --tags --abbrev=0 2>/dev/null || echo unknown)"
+echo "    版本：${TART_VERSION}"
+
+DECLARED_VERSION="$(sed -n 's/.*static let version = "\(.*\)".*/\1/p' \
+  "$ROOT/Sources/TartVMCore/TartVersion.swift" 2>/dev/null)"
+if [ -n "$DECLARED_VERSION" ] && [ "$TART_VERSION" != "unknown" ] \
+   && [ "$DECLARED_VERSION" != "$TART_VERSION" ]; then
+  echo "错误：Sources/TartVMCore/TartVersion.swift 声明的版本（${DECLARED_VERSION}）" >&2
+  echo "      与 Vendor/tart 的实际版本（${TART_VERSION}）不一致。" >&2
+  echo "      客户机的 guest agent 依赖这个版本号，不一致会导致虚拟机反复重启。" >&2
+  exit 1
+fi
+
+export CLANG_MODULE_CACHE_PATH="${CLANG_MODULE_CACHE_PATH:-$TART_SOURCE_DIR/.build/clang-module-cache}"
+export SWIFT_MODULECACHE_PATH="${SWIFT_MODULECACHE_PATH:-$TART_SOURCE_DIR/.build/swift-module-cache}"
+
+swift build \
+  --package-path "$TART_SOURCE_DIR" \
+  -c "$CONFIG" \
+  --product tart
+
+TART_BIN_PATH="$(swift build --package-path "$TART_SOURCE_DIR" -c "$CONFIG" --product tart --show-bin-path)"
+
 mkdir -p "$(dirname "$OUTPUT")"
-cp "$TART_BINARY" "$OUTPUT"
+cp "$TART_BIN_PATH/tart" "$OUTPUT"
 chmod u+x "$OUTPUT"
 echo "Tart helper：$OUTPUT"

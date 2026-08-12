@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- 虚拟机跑在 TartUI 进程内，所以虚拟化 entitlement 属于本 App，
+	     不再属于内置的 tart helper。普通 Apple Development 证书就带这一项。 -->
+	<key>com.apple.security.virtualization</key>
+	<true/>
+
+	<!-- 本机调试用。正式分发时换 TartUI-prod.entitlements。 -->
+	<key>com.apple.security.get-task-allow</key>
+	<true/>
+</dict>
+</plist>
