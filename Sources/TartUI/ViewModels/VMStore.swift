@@ -246,6 +246,16 @@ final class VMStore {
       return
     }
 
+    // 进程内运行时还不支持的选项必须挡在这里。悄悄换一个行为跑起来，用户
+    // 会以为设置生效了，等到真正依赖它时才发现不对，那种问题极难反查。
+    let unsupported = profile.unsupportedOptions
+    if !unsupported.isEmpty {
+      actionError = unsupported
+        .map { "\($0.option): \($0.reason)" }
+        .joined(separator: "\n\n")
+      return
+    }
+
     runtimeSessions.start(vmName: vmName, profile: profile)
 
     // tart run 要过一会儿才会把状态写进虚拟机目录，延迟刷新一次。

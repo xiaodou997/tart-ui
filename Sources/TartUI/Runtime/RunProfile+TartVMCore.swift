@@ -8,6 +8,69 @@ import TartVMCore
 /// 只对子进程模型有意义。这里明确记录每一项的归属，免得以后有人以为
 /// 某个选项「忘了实现」。
 extension RunProfile {
+  /// 进程内运行时尚未支持的配置项。
+  ///
+  /// 存在这个类型，是为了让「没实现」变成一次明确的拒绝，而不是悄悄换一个
+  /// 行为继续跑。静默降级的代价在这个项目里已经付过：用户选了 Softnet 却
+  /// 得到 NAT，界面上看不出任何区别，只有在排查网络问题时才会发现。
+  struct UnsupportedOption: Sendable, Hashable, Identifiable {
+    public let id = UUID()
+    /// 界面上显示的选项名。
+    let option: String
+    /// 为什么还没支持，以及可以怎么绕开。
+    let reason: String
+  }
+
+  /// 本次启动中所有无法生效的选项。非空时不应启动虚拟机。
+  ///
+  /// 说明文案要本地化，所以标注 MainActor——它只在启动前的校验路径上调用。
+  @MainActor
+  var unsupportedOptions: [UnsupportedOption] {
+    var result: [UnsupportedOption] = []
+
+    switch network {
+    case .shared, .bridged:
+      break
+    case .softnet:
+      result.append(UnsupportedOption(
+        option: "Softnet",
+        reason: L10n.text("Softnet runs as a separate helper process that the in-process runtime does not manage yet. Use Shared (NAT) or Bridged instead.")
+      ))
+    case .hostOnly:
+      result.append(UnsupportedOption(
+        option: "Host-only",
+        reason: L10n.text("Host-only networking is provided by Softnet, which the in-process runtime does not manage yet. Use Shared (NAT) instead.")
+      ))
+    }
+
+    if vnc || vncExperimental {
+      result.append(UnsupportedOption(
+        option: "VNC",
+        reason: L10n.text("VNC was served by the tart run subprocess. The in-process runtime shows a native window instead; remote access is not implemented yet.")
+      ))
+    }
+    if serial || serialPath != nil {
+      result.append(UnsupportedOption(
+        option: "Serial port",
+        reason: L10n.text("Serial ports require additional device configuration that the in-process runtime does not build yet.")
+      ))
+    }
+    if !disks.isEmpty || rootDiskOptions != nil {
+      result.append(UnsupportedOption(
+        option: "Additional disks",
+        reason: L10n.text("Extra disks and root disk options require additional device configuration that the in-process runtime does not build yet.")
+      ))
+    }
+    if let rosettaTag, !rosettaTag.isEmpty {
+      result.append(UnsupportedOption(
+        option: "Rosetta",
+        reason: L10n.text("Rosetta directory sharing is only meaningful for Linux guests and is not wired up in the in-process runtime yet.")
+      ))
+    }
+
+    return result
+  }
+
   func tartVMOptions() -> TartVMOptions {
     TartVMOptions(
       network: tartNetworkMode(),
@@ -20,19 +83,13 @@ extension RunProfile {
       noPointer: noPointer,
       noKeyboard: noKeyboard
     )
-    // 未映射的字段，各有原因：
+    // 有意不映射的字段（它们不是缺口）：
     //
-    // recovery         —— 不属于机器配置，作为参数传给 start(recovery:)。
-    // noGraphics       —— 现在等于「不开窗口」，由协调器决定，不影响虚拟机配置。
-    // captureSystemKeys—— 属于窗口/视图行为，交给 VZVirtualMachineView。
-    // vnc / vncExperimental
-    //                  —— 上游由 `tart run` 自己起 VNC 服务。进程内模式下窗口
-    //                     就是原生的，VNC 只在远程访问时才有意义；这部分留到
-    //                     后面单独做，届时直接用 Virtualization 的接口，而不是
-    //                     再去起一个 tart 子进程。
-    // serial / serialPath / disks / rootDiskOptions / rosettaTag
-    //                  —— 需要构造额外的 VZ 设备配置，门面暂未暴露对应参数。
-    //                     这些字段目前在进程内模式下不生效，属于已知缺口。
+    // recovery          —— 不属于机器配置，作为参数传给 start(recovery:)。
+    // noGraphics        —— 等于「不开窗口」，由协调器决定，不影响虚拟机配置。
+    // captureSystemKeys —— 属于窗口行为，交给 VZVirtualMachineView。
+    //
+    // 其余尚未支持的字段由 unsupportedOptions 负责拦截，不在这里静默忽略。
   }
 
   private func tartNetworkMode() -> TartNetworkMode {
@@ -42,9 +99,8 @@ extension RunProfile {
     case let .bridged(interface):
       return interface.isEmpty ? .shared : .bridged(interfaceName: interface)
     case .hostOnly, .softnet:
-      // Softnet 是一个独立的辅助进程，上游通过 `tart run --net-softnet` 拉起。
-      // 进程内模式要复用它需要额外接管其生命周期，暂时回退到 NAT，
-      // 而不是假装配置成功。
+      // 走到这里说明调用方没有先检查 unsupportedOptions。返回 NAT 只是为了
+      // 让类型完整，启动路径上不应该出现这种情况。
       return .shared
     }
   }

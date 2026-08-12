@@ -93,6 +93,17 @@ final class VMRuntimeCoordinator {
     }
 
     machines[vmName] = machine
+    // 把实际生效的配置记进日志。客户机行为异常时，这几行能立刻回答
+    // 「虚拟机到底是按什么配置起来的」，不必再去改代码打印。
+    for line in machine.configurationSummary.split(separator: "\n") {
+      session.append(String(line), isError: false)
+    }
+
+    // 客户机自己重启时宿主是察觉不到的——虚拟机对象一直是 running。把它
+    // 显式记下来，「反复回到开机画面」这种现象才有可读的证据，不必靠盯屏幕。
+    machine.onGuestRestart = { [weak session] count in
+      session?.markGuestRestarted(count: count)
+    }
     let wasSuspended = machine.hasSuspendedState
 
     do {

@@ -90,6 +90,21 @@ final class VMRuntimeSession: Identifiable {
     appendLifecycle(L10n.text("Resumed from the suspended state."))
   }
 
+  /// 客户机自行重启了一次。
+  ///
+  /// 虚拟机本身没有停止，所以状态不变；但这件事必须留下痕迹——它在界面上
+  /// 原本完全不可见，只能靠盯着画面才知道客户机在反复回到开机画面。
+  private(set) var guestRestartCount = 0
+
+  func markGuestRestarted(count: Int) {
+    guard state.isActive else { return }
+    guestRestartCount = count
+    appendLifecycle(L10n.format(
+      "The guest restarted itself (%@ times). If this keeps repeating, the guest is failing to boot.",
+      String(count)
+    ))
+  }
+
   func markStopping() {
     guard state == .running else { return }
     state = .stopping

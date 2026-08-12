@@ -146,6 +146,36 @@ public final class TartVirtualMachine {
   /// 可靠的——今天就漏掉过一处。把真实对象暴露出来，差异可以直接打印。
   public var debugConfiguration: VZVirtualMachineConfiguration { vm.configuration }
 
+  /// 人类可读的配置摘要，写进会话日志。
+  ///
+  /// 排查客户机异常时，第一个要回答的问题永远是「实际交给
+  /// Virtualization.Framework 的是什么」。靠读代码推断并不可靠——本项目就
+  /// 因此漏看过目录共享的分支，也漏看过 console 设备名里的宿主版本号。
+  /// 把真实对象摘要下来，这类问题可以直接读日志。
+  public var configurationSummary: String {
+    let configuration = vm.configuration
+    var lines: [String] = []
+    lines.append("runtime=tart \(CI.version)")
+    lines.append("cpu=\(configuration.cpuCount) memory=\(configuration.memorySize / 1024 / 1024 / 1024)GB")
+    lines.append("storage=\(configuration.storageDevices.count) network=\(configuration.networkDevices.map { String(describing: type(of: $0.attachment)) })")
+    lines.append("directoryShares=\(configuration.directorySharingDevices.count) serial=\(configuration.serialPorts.count)")
+    lines.append("graphics=\(configuration.graphicsDevices.count) audio=\(configuration.audioDevices.count) socket=\(configuration.socketDevices.count)")
+    // console 设备的名字里带宿主版本号，客户机的 guest agent 会读它做特性
+    // 检查。这一项曾经因为版本号是未替换的占位符而导致客户机反复重启，
+    // 所以它值得单独列出来。
+    // ports 是 VZVirtioConsolePortConfigurationArray，不是 Swift 集合，
+    // 只能按下标取。
+    var consoleNames: [String] = []
+    for device in configuration.consoleDevices {
+      guard let console = device as? VZVirtioConsoleDeviceConfiguration else { continue }
+      for index in 0..<Int(console.ports.maximumPortCount) {
+        if let name = console.ports[index]?.name { consoleNames.append(name) }
+      }
+    }
+    lines.append("consolePorts=\(consoleNames)")
+    return lines.joined(separator: "\n")
+  }
+
   public var cpuCount: Int { vm.config.cpuCount }
   public var memorySize: UInt64 { vm.config.memorySize }
 
@@ -190,6 +220,44 @@ public final class TartVirtualMachine {
     FileManager.default.fileExists(atPath: vmDir.stateURL.path)
   }
 
+  /// 客户机自己重启的次数。
+  ///
+  /// 客户机在内部重启时，宿主这边的 `VZVirtualMachine` 会一直保持 running，
+  /// 代理和状态机都察觉不到——界面上看不出任何异常，只有盯着画面才知道它在
+  /// 反复回到开机画面。本项目排查这类问题时因此绕了很远。
+  ///
+  /// nvram 只在开关机时写入，所以它的修改时间是客户机重启的可靠信号。
+  public private(set) var guestRestartCount = 0
+
+  private var nvramModificationDate: Date?
+  private var restartWatchdog: Task<Void, Never>?
+
+  /// 客户机重启时回调，参数是累计次数。
+  public var onGuestRestart: (@MainActor @Sendable (Int) -> Void)?
+
+  private func startRestartWatchdog() {
+    nvramModificationDate = currentNVRAMModificationDate()
+    restartWatchdog = Task { [weak self] in
+      while !Task.isCancelled {
+        try? await Task.sleep(for: .seconds(5))
+        guard let self, !Task.isCancelled else { return }
+        let latest = self.currentNVRAMModificationDate()
+        if let latest, let previous = self.nvramModificationDate, latest != previous {
+          self.nvramModificationDate = latest
+          self.guestRestartCount += 1
+          self.onGuestRestart?(self.guestRestartCount)
+        } else if self.nvramModificationDate == nil {
+          self.nvramModificationDate = latest
+        }
+      }
+    }
+  }
+
+  private func currentNVRAMModificationDate() -> Date? {
+    try? FileManager.default
+      .attributesOfItem(atPath: vmDir.nvramURL.path)[.modificationDate] as? Date
+  }
+
   /// 启动虚拟机。返回后虚拟机进入运行态，但客户机还在引导中。
   ///
   /// 若磁盘上存在挂起状态，会自动从该状态恢复而不是冷启动。这段逻辑上游
@@ -226,6 +294,7 @@ public final class TartVirtualMachine {
       }.value
 
       startControlSocket()
+      startRestartWatchdog()
     } catch {
       try? runLock?.unlock()
       runLock = nil
@@ -268,6 +337,8 @@ public final class TartVirtualMachine {
     defer {
       controlSocketTask?.cancel()
       controlSocketTask = nil
+      restartWatchdog?.cancel()
+      restartWatchdog = nil
       // 无论正常停机还是抛错，锁都必须还回去，否则这台虚拟机在下次重启
       // TartUI 之前都会被误判成「正在运行」。
       try? runLock?.unlock()
