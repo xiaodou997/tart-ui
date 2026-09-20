@@ -20,6 +20,9 @@ struct TartUIApp: App {
             message: error,
             isInstalling: store.isInstallingRuntime,
             onInstall: { Task { await store.installLatestRuntime() } },
+            onChooseExisting: { path in
+              Task { _ = await store.applyRuntimePath(path) }
+            },
             onRetry: {
               let override = TartLocator.storedUserOverride()
               Task { await store.bootstrap(userOverride: override?.isEmpty == false ? override : nil) }

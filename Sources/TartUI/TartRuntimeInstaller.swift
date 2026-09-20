@@ -2,22 +2,26 @@ import CryptoKit
 import Foundation
 import TartKit
 
-/// 负责把官方 Tart release 安装到 TartUI 自己管理的运行时目录。
-///
-/// 正式发布的 App 会把 Tart 直接放进自己的 bundle；这个安装器主要服务于：
-/// - 开发包或损坏的 bundle；
-/// - 用户主动更新 Tart 运行时；
-/// - 以后需要回滚到旧版本的场景。
-///
-/// 安装过程不会写入 Homebrew，也不会修改用户的 shell 配置。
+/// Installs official Tart release artifacts into TartUI's Application Support
+/// directory. TartUI never compiles, patches or embeds Tart source code.
 struct TartRuntimeInstaller {
   private static let releaseAPI = URL(string: "https://api.github.com/repos/openai/tart/releases/latest")!
   private static let fallbackArchive = URL(string: "https://github.com/openai/tart/releases/latest/download/tart.tar.gz")!
 
   private let fileManager: FileManager
+  private let applicationSupportURL: URL
 
-  init(fileManager: FileManager = .default) {
+  init(
+    fileManager: FileManager = .default,
+    applicationSupportURL: URL? = nil
+  ) {
     self.fileManager = fileManager
+    self.applicationSupportURL = applicationSupportURL
+      ?? TartLocator.defaultApplicationSupportURL(fileManager: fileManager)
+  }
+
+  func latestVersion() async throws -> String {
+    try await fetchLatestRelease().version
   }
 
   func installLatest() async throws -> TartRuntime {
@@ -49,16 +53,68 @@ struct TartRuntimeInstaller {
       throw TartRuntimeInstallError.binaryMissing
     }
 
-    // 官方 archive 通常包含 tart.app。优先验证整个 app；如果上游改成裸二进制，
-    // 则验证该二进制本身。没有有效签名就不写入可执行运行时目录。
     let signedRoot = tartAppRoot(containing: extractedBinary) ?? extractedBinary
     try await verifyCodeSignature(at: signedRoot)
 
-    return try install(
-      extractedBinary: extractedBinary,
-      version: release.version,
-      temporaryRoot: temporaryRoot
-    )
+    return try install(extractedBinary: extractedBinary, version: release.version)
+  }
+
+  /// All managed versions retained on disk, newest first.
+  func installedVersions() -> [String] {
+    let root = versionsRoot
+    guard let names = try? fileManager.contentsOfDirectory(atPath: root.path) else {
+      return []
+    }
+
+    return names
+      .filter { !$0.hasPrefix(".") }
+      .filter { fileManager.fileExists(atPath: root.appendingPathComponent($0).path) }
+      .sorted { Self.compareVersions($0, $1) == .orderedDescending }
+  }
+
+  /// Switches the managed runtime without downloading anything.
+  func activateManagedVersion(_ version: String) throws -> TartRuntime {
+    let versionRoot = versionsRoot.appendingPathComponent(version, isDirectory: true)
+    let binaryURL = try managedBinary(in: versionRoot)
+    try updateCurrentSymlink(to: versionRoot)
+    return TartRuntime(binaryURL: binaryURL, source: .managed)
+  }
+
+  static func isVersion(_ candidate: String, newerThan current: String) -> Bool {
+    compareVersions(candidate, current) == .orderedDescending
+  }
+
+  static func compareVersions(_ lhs: String, _ rhs: String) -> ComparisonResult {
+    let left = versionComponents(lhs)
+    let right = versionComponents(rhs)
+    let count = max(left.count, right.count)
+
+    for index in 0..<count {
+      let a = index < left.count ? left[index] : 0
+      let b = index < right.count ? right[index] : 0
+      if a < b { return .orderedAscending }
+      if a > b { return .orderedDescending }
+    }
+    return .orderedSame
+  }
+
+  private static func versionComponents(_ value: String) -> [Int] {
+    value
+      .trimmingCharacters(in: CharacterSet(charactersIn: "vV"))
+      .split(separator: ".")
+      .map { part in
+        let digits = part.prefix { $0.isNumber }
+        return Int(digits) ?? 0
+      }
+  }
+
+  private var supportRoot: URL {
+    applicationSupportURL
+      .appendingPathComponent(TartLocator.managedRuntimeDirectoryName, isDirectory: true)
+  }
+
+  private var versionsRoot: URL {
+    supportRoot.appendingPathComponent("versions", isDirectory: true)
   }
 
   private func fetchLatestRelease() async throws -> ReleaseInfo {
@@ -137,13 +193,13 @@ struct TartRuntimeInstaller {
       .first
 
     guard let expected else {
-      // 上游没有为当前 archive 提供对应校验项时，后面的代码签名校验仍然有效。
       return
     }
 
     let actual = SHA256.hash(data: archiveData)
       .map { String(format: "%02x", $0) }
       .joined()
+
     guard actual.caseInsensitiveCompare(expected) == .orderedSame else {
       throw TartRuntimeInstallError.checksumMismatch
     }
@@ -200,19 +256,11 @@ struct TartRuntimeInstaller {
     return nil
   }
 
-  private func install(
-    extractedBinary: URL,
-    version: String,
-    temporaryRoot: URL
-  ) throws -> TartRuntime {
-    let supportRoot = TartLocator.defaultApplicationSupportURL()
-      .appendingPathComponent(TartLocator.managedRuntimeDirectoryName, isDirectory: true)
-    let versionsRoot = supportRoot.appendingPathComponent("versions", isDirectory: true)
+  private func install(extractedBinary: URL, version: String) throws -> TartRuntime {
     try fileManager.createDirectory(at: versionsRoot, withIntermediateDirectories: true)
 
     let safeVersion = version.replacingOccurrences(of: "/", with: "-")
     let versionRoot = versionsRoot.appendingPathComponent(safeVersion, isDirectory: true)
-    let binaryURL: URL
 
     if !fileManager.fileExists(atPath: versionRoot.path) {
       let stagingRoot = supportRoot
@@ -232,27 +280,36 @@ struct TartRuntimeInstaller {
       try fileManager.moveItem(at: stagingRoot, to: versionRoot)
     }
 
+    let binaryURL = try managedBinary(in: versionRoot)
+    try updateCurrentSymlink(to: versionRoot)
+    return TartRuntime(binaryURL: binaryURL, source: .managed)
+  }
+
+  private func managedBinary(in versionRoot: URL) throws -> URL {
     let appBinary = versionRoot.appendingPathComponent("tart.app/Contents/MacOS/tart")
     if fileManager.isExecutableFile(atPath: appBinary.path) {
-      binaryURL = appBinary
-    } else {
-      binaryURL = versionRoot.appendingPathComponent("tart")
+      return appBinary
     }
 
-    guard fileManager.isExecutableFile(atPath: binaryURL.path) else {
-      throw TartRuntimeInstallError.binaryMissing
+    let bareBinary = versionRoot.appendingPathComponent("tart")
+    if fileManager.isExecutableFile(atPath: bareBinary.path) {
+      return bareBinary
     }
+
+    throw TartRuntimeInstallError.binaryMissing
+  }
+
+  private func updateCurrentSymlink(to versionRoot: URL) throws {
+    try fileManager.createDirectory(at: supportRoot, withIntermediateDirectories: true)
 
     let currentURL = supportRoot.appendingPathComponent("current", isDirectory: true)
     let nextURL = supportRoot.appendingPathComponent(".current-\(UUID().uuidString)")
+
     try fileManager.createSymbolicLink(at: nextURL, withDestinationURL: versionRoot)
     if fileManager.fileExists(atPath: currentURL.path) {
       try fileManager.removeItem(at: currentURL)
     }
     try fileManager.moveItem(at: nextURL, to: currentURL)
-
-    _ = temporaryRoot // Keep the extraction lifetime tied to the caller's defer.
-    return TartRuntime(binaryURL: binaryURL, source: .managed)
   }
 
   private static func runProcess(executable: URL, arguments: [String]) throws {
@@ -273,6 +330,7 @@ struct TartRuntimeInstaller {
       let output = stderr.fileHandleForReading.readDataToEndOfFile()
       let detail = String(decoding: output, as: UTF8.self)
         .trimmingCharacters(in: .whitespacesAndNewlines)
+
       throw TartRuntimeInstallError.toolFailed(
         executable.lastPathComponent,
         detail.isEmpty ? "exit code \(process.terminationStatus)" : detail

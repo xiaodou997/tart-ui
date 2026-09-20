@@ -273,19 +273,32 @@ struct LocatorTests {
     #expect(try locator.locate().path == "/opt/homebrew/bin/tart")
   }
 
-  @Test("内置 runtime 优先于系统安装")
-  func prefersBundledRuntime() throws {
+  @Test("系统安装优先于 TartUI 托管运行时")
+  func systemInstallBeatsManagedRuntime() throws {
     let locator = TartLocator(
       searchPaths: ["/system/tart"],
       pathEnvironment: nil,
-      isExecutableFile: { _ in true },
-      bundledPaths: ["/bundle/Helpers/tart"],
-      managedPaths: []
+      isExecutableFile: { $0 == "/system/tart" || $0 == "/managed/tart" },
+      managedPaths: ["/managed/tart"]
     )
 
     let runtime = try locator.resolve()
-    #expect(runtime.binaryURL.path == "/bundle/Helpers/tart")
-    #expect(runtime.source == .bundled)
+    #expect(runtime.binaryURL.path == "/system/tart")
+    #expect(runtime.source == .system)
+  }
+
+  @Test("系统和 PATH 都没有时回退到托管运行时")
+  func managedRuntimeIsFallback() throws {
+    let locator = TartLocator(
+      searchPaths: ["/system/tart"],
+      pathEnvironment: "/usr/bin:/custom/tools",
+      isExecutableFile: { $0 == "/managed/tart" },
+      managedPaths: ["/managed/tart"]
+    )
+
+    let runtime = try locator.resolve()
+    #expect(runtime.binaryURL.path == "/managed/tart")
+    #expect(runtime.source == .managed)
   }
 
   @Test("已知位置都落空时回退到 PATH")

@@ -16,8 +16,24 @@ final class VMStore {
   private(set) var tartVersion: String?
   private(set) var isInstallingRuntime = false
   private(set) var runtimeInstallError: String?
+  private(set) var latestOfficialTartVersion: String?
+  private(set) var isCheckingRuntimeUpdate = false
+  private(set) var runtimeUpdateError: String?
+  private(set) var managedVersions: [String] = []
 
   var runtimeSource: TartRuntimeSource? { runtime?.source }
+
+  var isRuntimeUpdateAvailable: Bool {
+    guard let current = tartVersion, let latest = latestOfficialTartVersion else { return false }
+    return TartRuntimeInstaller.isVersion(latest, newerThan: current)
+  }
+
+  var previousManagedVersion: String? {
+    guard runtime?.source == .managed, let current = tartVersion else { return nil }
+    return managedVersions.first {
+      TartRuntimeInstaller.compareVersions($0, current) == .orderedAscending
+    }
+  }
 
   /// Long-running tart commands such as run, clone, create, pull and push.
   let operations = OperationCenter()
@@ -36,27 +52,48 @@ final class VMStore {
     do {
       let runtime = try TartLocator().resolve(userOverride: userOverride)
       let client = TartClient(runtime: runtime)
-
-      self.tartVersion = try await client.version()
-      self.runtime = runtime
-      self.client = client
-      self.loadError = nil
-      self.runtimeInstallError = nil
-
-      loadProfiles()
-      await refresh()
-      pruneOrphanProfiles()
-      startAutoSync()
+      let version = try await client.version()
+      await activate(runtime: runtime, client: client, version: version)
     } catch {
       stopAutoSync()
       self.client = nil
       self.runtime = nil
       self.tartVersion = nil
+      self.managedVersions = TartRuntimeInstaller().installedVersions()
       self.loadError = error.localizedDescription
     }
   }
 
-  /// Downloads an official Tart release into TartUI's managed runtime directory.
+  /// Validates a runtime choice before persisting it. Invalid paths never become
+  /// the next-launch default.
+  func applyRuntimePath(_ path: String?) async -> String? {
+    let normalized = path?.trimmingCharacters(in: .whitespacesAndNewlines)
+    let override = normalized?.isEmpty == false ? normalized : nil
+
+    do {
+      let runtime = try TartLocator().resolve(userOverride: override)
+      let client = TartClient(runtime: runtime)
+      let version = try await client.version()
+
+      let defaults = UserDefaults.standard
+      if let override {
+        defaults.set(override, forKey: TartLocator.userOverrideDefaultsKey)
+      } else {
+        defaults.removeObject(forKey: TartLocator.userOverrideDefaultsKey)
+        defaults.removeObject(forKey: TartLocator.legacyUserOverrideDefaultsKey)
+      }
+
+      await activate(runtime: runtime, client: client, version: version)
+      return nil
+    } catch {
+      if client == nil {
+        loadError = error.localizedDescription
+      }
+      return error.localizedDescription
+    }
+  }
+
+  /// Downloads and activates the latest official Tart release as a TartUI-managed runtime.
   func installLatestRuntime() async {
     guard !isInstallingRuntime else { return }
 
@@ -65,12 +102,65 @@ final class VMStore {
     defer { isInstallingRuntime = false }
 
     do {
-      _ = try await TartRuntimeInstaller().installLatest()
-      await bootstrap()
+      let runtime = try await TartRuntimeInstaller().installLatest()
+      let client = TartClient(runtime: runtime)
+      let version = try await client.version()
+
+      let defaults = UserDefaults.standard
+      defaults.removeObject(forKey: TartLocator.userOverrideDefaultsKey)
+      defaults.removeObject(forKey: TartLocator.legacyUserOverrideDefaultsKey)
+
+      await activate(runtime: runtime, client: client, version: version)
+      latestOfficialTartVersion = version
     } catch {
       runtimeInstallError = error.localizedDescription
-      loadError = error.localizedDescription
+      if client == nil {
+        loadError = error.localizedDescription
+      }
     }
+  }
+
+  func checkForRuntimeUpdate() async {
+    guard !isCheckingRuntimeUpdate else { return }
+
+    isCheckingRuntimeUpdate = true
+    runtimeUpdateError = nil
+    defer { isCheckingRuntimeUpdate = false }
+
+    do {
+      latestOfficialTartVersion = try await TartRuntimeInstaller().latestVersion()
+    } catch {
+      runtimeUpdateError = error.localizedDescription
+    }
+  }
+
+  func rollbackManagedRuntime(to version: String) async {
+    guard runtime?.source == .managed else { return }
+
+    do {
+      let runtime = try TartRuntimeInstaller().activateManagedVersion(version)
+      let client = TartClient(runtime: runtime)
+      let actualVersion = try await client.version()
+      await activate(runtime: runtime, client: client, version: actualVersion)
+    } catch {
+      runtimeUpdateError = error.localizedDescription
+    }
+  }
+
+  private func activate(runtime: TartRuntime, client: TartClient, version: String) async {
+    self.runtime = runtime
+    self.client = client
+    self.tartVersion = version
+    self.loadError = nil
+    self.runtimeInstallError = nil
+    self.runtimeUpdateError = nil
+    self.latestOfficialTartVersion = nil
+    self.managedVersions = TartRuntimeInstaller().installedVersions()
+
+    loadProfiles()
+    await refresh()
+    pruneOrphanProfiles()
+    startAutoSync()
   }
 
   func refresh() async {
