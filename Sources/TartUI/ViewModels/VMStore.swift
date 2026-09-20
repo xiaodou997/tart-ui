@@ -399,23 +399,6 @@ final class VMStore {
     }
   }
 
-  func rename(name: String, to newName: String) async {
-    guard let client else { return }
-    let action = client.renameAction(name: name, to: newName)
-    do {
-      _ = try await operations.perform(
-        title: "\(L10n.text("Rename")) \(name)",
-        action: action,
-        execute: { try await client.rename(name: name, to: newName) }
-      )
-      profiles.rename(vmName: name, to: newName)
-      persistProfiles()
-      await refresh()
-    } catch {
-      actionError = error.localizedDescription
-    }
-  }
-
   func delete(names: [String]) async {
     guard let client else { return }
     let action = client.deleteAction(names: names)
@@ -443,38 +426,6 @@ final class VMStore {
     let action = client.pullAction(remoteName: reference, insecure: insecure, concurrency: concurrency)
     operations.run(
       title: L10n.format("Pull \"%@\"", reference),
-      action: action,
-      stream: { client.stream(action) },
-      onSuccess: { [weak self] in await self?.refresh() }
-    )
-  }
-
-  func push(
-    localName: String,
-    remoteNames: [String],
-    insecure: Bool = false,
-    concurrency: UInt? = nil,
-    chunkSizeMB: Int? = nil,
-    labels: [ImageLabel] = [],
-    populateCache: Bool = false
-  ) {
-    guard let client else { return }
-
-    let target = remoteNames.count == 1
-      ? remoteNames[0]
-      : L10n.format("%@ targets", String(remoteNames.count))
-
-    let action = client.pushAction(
-      localName: localName,
-      remoteNames: remoteNames,
-      insecure: insecure,
-      concurrency: concurrency,
-      chunkSizeMB: chunkSizeMB,
-      labels: labels,
-      populateCache: populateCache
-    )
-    operations.run(
-      title: L10n.format("Push \"%@\" → %@", localName, target),
       action: action,
       stream: { client.stream(action) },
       onSuccess: { [weak self] in await self?.refresh() }
@@ -525,18 +476,7 @@ final class VMStore {
     }
   }
 
-  // MARK: - Import and export
-
-  func exportVM(name: String, to path: String) {
-    guard let client else { return }
-
-    let action = client.exportAction(name: name, to: path)
-    operations.run(
-      title: L10n.format("Export \"%@\"", name),
-      action: action,
-      stream: { client.stream(action) }
-    )
-  }
+  // MARK: - Import
 
   func importVM(from path: String, name: String) {
     guard let client else { return }
@@ -592,21 +532,6 @@ final class VMStore {
       )
       return result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
     } catch {
-      return nil
-    }
-  }
-
-  func exec(vmName: String, command: [String]) async -> CommandResult? {
-    guard let client else { return nil }
-    let action = client.execAction(name: vmName, command: command)
-    do {
-      return try await operations.perform(
-        title: "\(L10n.text("Run a Command in the VM")): \(vmName)",
-        action: action,
-        execute: { try await client.exec(name: vmName, command: command) }
-      )
-    } catch {
-      actionError = error.localizedDescription
       return nil
     }
   }
