@@ -144,7 +144,7 @@
 "Not Available" = "Not Available";
 "Updating Tart…" = "Updating Tart…";
 "Install or Update Managed Runtime" = "Install or Update Managed Runtime";
-"TartUI uses its bundled runtime when available. This action installs or updates a managed fallback; bundled Tart is updated with new TartUI releases." = "TartUI uses its bundled runtime when available. This action installs or updates a managed fallback; bundled Tart is updated with new TartUI releases.";
+"TartUI uses an existing system Tart installation when available. Managed runtimes are official Tart releases downloaded by TartUI and used as a fallback." = "TartUI uses an existing system Tart installation when available. Managed runtimes are official Tart releases downloaded by TartUI and used as a fallback.";
 "Built-in Tart" = "Built-in Tart";
 "TartUI Managed Runtime" = "TartUI Managed Runtime";
 "Manual Path" = "Manual Path";

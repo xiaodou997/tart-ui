@@ -143,7 +143,7 @@
 "Not Available" = "不可用";
 "Updating Tart…" = "正在更新 Tart…";
 "Install or Update Managed Runtime" = "安装或更新托管运行时";
-"TartUI uses its bundled runtime when available. This action installs or updates a managed fallback; bundled Tart is updated with new TartUI releases." = "TartUI 有内置运行时可用时会优先使用它。此操作安装或更新托管备用运行时；内置 Tart 会随新版 TartUI 一起更新。";
+"TartUI uses an existing system Tart installation when available. Managed runtimes are official Tart releases downloaded by TartUI and used as a fallback." = "TartUI 会优先使用系统中已有的 Tart。托管运行时由 TartUI 从官方发布版本下载，并在系统未安装 Tart 时作为备用。";
 "Built-in Tart" = "内置 Tart";
 "TartUI Managed Runtime" = "TartUI 托管运行时";
 "Manual Path" = "手动路径";

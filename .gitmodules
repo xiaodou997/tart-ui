@@ -1,4 +1,0 @@
-[submodule "Vendor/tart"]
-	path = Vendor/tart
-	url = https://github.com/openai/tart.git
-	branch = main

@@ -9,7 +9,6 @@ struct VMDetailView: View {
   @State private var detailsError: String?
   @State private var selectedProfileID: UUID?
   @State private var isEditingProfile = false
-  @State private var isShowingLog = false
   @State private var isStopping = false
   @State private var isEditingConfig = false
   @State private var isRenaming = false
@@ -20,10 +19,6 @@ struct VMDetailView: View {
   @State private var ipAddress: String?
   @State private var isLookingUpIP = false
 
-  private var session: VMRuntimeSession? {
-    store.runtimeSessions?.session(for: entry.name)
-  }
-
   private var currentProfile: RunProfile {
     store.profile(for: entry.name, id: selectedProfileID)
   }
@@ -33,10 +28,6 @@ struct VMDetailView: View {
       VStack(alignment: .leading, spacing: 20) {
         header
         actionBar
-
-        if let session {
-          sessionBanner(session: session)
-        }
 
         if entry.isRunning {
           networkSection
@@ -60,11 +51,6 @@ struct VMDetailView: View {
           selectedProfileID = updated.id
         }
       )
-    }
-    .sheet(isPresented: $isShowingLog) {
-      if let session {
-        SessionLogView(session: session)
-      }
     }
     .sheet(isPresented: $isEditingConfig) {
       if let details {
@@ -101,8 +87,13 @@ struct VMDetailView: View {
     .sheet(isPresented: $isPushing) {
       PushImageSheet(localName: entry.name) { local, targets, insecure, concurrency, chunk, labels, cache in
         store.push(
-          localName: local, remoteNames: targets, insecure: insecure,
-          concurrency: concurrency, chunkSizeMB: chunk, labels: labels, populateCache: cache
+          localName: local,
+          remoteNames: targets,
+          insecure: insecure,
+          concurrency: concurrency,
+          chunkSizeMB: chunk,
+          labels: labels,
+          populateCache: cache
         )
       }
     }
@@ -126,8 +117,6 @@ struct VMDetailView: View {
   private var otherNames: Set<String> {
     allNames.subtracting([entry.name])
   }
-
-  // MARK: - 头部
 
   private var header: some View {
     VStack(alignment: .leading, spacing: 6) {
@@ -153,8 +142,6 @@ struct VMDetailView: View {
     }
   }
 
-  // MARK: - 操作栏
-
   private var actionBar: some View {
     HStack(spacing: 10) {
       if entry.isRunning {
@@ -174,27 +161,18 @@ struct VMDetailView: View {
         } label: {
           Label(L10n.text("Suspend"), systemImage: "pause.circle")
         }
-        // tart 只允许挂起以「可挂起」方式启动的虚拟机。
-        .disabled(!currentProfile.suspendable)
-        .help(L10n.text(currentProfile.suspendable
-          ? "Save the VM state to disk"
-          : "Only VMs started with Suspendable can be suspended"))
+        .help(L10n.text("Ask tart to save the VM state to disk"))
       } else {
         Button {
           store.start(vmName: entry.name, profile: currentProfile)
         } label: {
-          Label(entry.state == .suspended ? L10n.text("Resume") : L10n.text("Start"), systemImage: "play.fill")
+          Label(
+            entry.state == .suspended ? L10n.text("Resume") : L10n.text("Start"),
+            systemImage: "play.fill"
+          )
         }
         .buttonStyle(.borderedProminent)
         .disabled(currentProfile.hasBlockingIssues)
-      }
-
-      if session != nil {
-        Button {
-          isShowingLog = true
-        } label: {
-          Label(L10n.text("Logs"), systemImage: "text.alignleft")
-        }
       }
 
       Spacer()
@@ -208,7 +186,6 @@ struct VMDetailView: View {
           Button(L10n.text("Run Command…")) { isExecuting = true }
         }
 
-        // OCI 镜像是只读缓存，改不了也重命名不了，只能克隆或删除。
         if entry.source == .local {
           Button(L10n.text("Edit Configuration…")) { isEditingConfig = true }
             .disabled(details == nil)
@@ -227,84 +204,6 @@ struct VMDetailView: View {
       .fixedSize()
     }
   }
-
-  private func runningBanner(session: VMRuntimeSession) -> some View {
-    VStack(alignment: .leading, spacing: 8) {
-      HStack(spacing: 8) {
-        ProgressView().controlSize(.small)
-        VStack(alignment: .leading, spacing: 2) {
-          Text(L10n.format("Started by TartUI with profile \"%@\"", session.profileName))
-            .font(.callout)
-          Text(session.equivalentCommandLine)
-            .font(.system(.caption, design: .monospaced))
-            .foregroundStyle(.secondary)
-            .textSelection(.enabled)
-            .lineLimit(2)
-        }
-        Spacer()
-
-        if session.state.isActive {
-          Button(L10n.text("Show VM Window")) {
-            store.showWindow(vmName: session.vmName)
-          }
-        }
-
-        Button(L10n.text("Logs")) {
-          isShowingLog = true
-        }
-      }
-
-      Divider()
-
-      ForEach(Array(session.recentLines.suffix(4))) { line in
-        Text(line.text)
-          .font(.system(.caption, design: .monospaced))
-          .foregroundStyle(line.isError ? .red : .secondary)
-          .textSelection(.enabled)
-          .lineLimit(2)
-      }
-    }
-    .padding(10)
-    .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
-  }
-
-  @ViewBuilder
-  private func sessionBanner(session: VMRuntimeSession) -> some View {
-    switch session.state {
-    case .starting, .running, .stopping, .suspending:
-      runningBanner(session: session)
-    case let .failed(failure):
-      failureBanner(failure: failure)
-    case .exited, .suspended:
-      // 进程内模式没有「退出码」：客户机正常停机就是停机，启动或运行期
-      // 出错会走上面的 .failed 分支，带着真正的错误信息。
-      EmptyView()
-    }
-  }
-
-  private func failureBanner(failure: VMRuntimeFailure) -> some View {
-    HStack(alignment: .top, spacing: 8) {
-      Image(systemName: "exclamationmark.triangle.fill")
-        .foregroundStyle(.red)
-      VStack(alignment: .leading, spacing: 3) {
-        Text(L10n.text("Failed to Start"))
-          .font(.callout.weight(.semibold))
-        Text(failure.message)
-          .font(.callout)
-          .textSelection(.enabled)
-        if failure.kind == .bridgedNetworkingEntitlement {
-          Text(L10n.text("Bridged networking requires Apple's restricted VM networking entitlement. Choose Shared (NAT), or request it from Apple."))
-            .font(.caption)
-            .foregroundStyle(.secondary)
-        }
-      }
-      Spacer()
-    }
-    .padding(10)
-    .background(.red.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
-  }
-
-  // MARK: - 网络
 
   private var networkSection: some View {
     GroupBox(L10n.text("Network")) {
@@ -338,7 +237,6 @@ struct VMDetailView: View {
   private func lookUpIP() {
     isLookingUpIP = true
     Task {
-      // 刚启动时网络还没就绪，让 tart 等一会儿再返回。
       ipAddress = await store.ipAddress(for: entry.name, waitSeconds: 15)
       isLookingUpIP = false
     }
@@ -353,8 +251,6 @@ struct VMDetailView: View {
     guard panel.runModal() == .OK, let url = panel.url else { return }
     store.exportVM(name: entry.name, to: url.path)
   }
-
-  // MARK: - 规格
 
   private var specSection: some View {
     GroupBox(L10n.text("Configuration")) {
@@ -391,8 +287,6 @@ struct VMDetailView: View {
     }
   }
 
-  // MARK: - 启动配置
-
   private var profileSection: some View {
     GroupBox(L10n.text("Run Profile")) {
       VStack(alignment: .leading, spacing: 10) {
@@ -425,7 +319,7 @@ struct VMDetailView: View {
           VStack(alignment: .leading, spacing: 4) {
             ForEach(warnings) { warning in
               Label {
-              Text(L10n.text(warning.message)).font(.caption)
+                Text(L10n.text(warning.message)).font(.caption)
               } icon: {
                 Image(systemName: warning.isBlocking
                   ? "exclamationmark.octagon.fill"
@@ -436,7 +330,6 @@ struct VMDetailView: View {
           }
         }
 
-        // 让用户看得到实际会执行什么命令，也方便复制到终端复现问题。
         Text("tart " + currentProfile.arguments(vmName: entry.name).joined(separator: " "))
           .font(.system(.caption, design: .monospaced))
           .foregroundStyle(.secondary)
@@ -446,8 +339,6 @@ struct VMDetailView: View {
       .padding(.vertical, 4)
     }
   }
-
-  // MARK: - 数据加载
 
   private func loadDetails() async {
     details = nil
