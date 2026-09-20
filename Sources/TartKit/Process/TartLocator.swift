@@ -27,7 +27,6 @@ public struct TartLocator: Sendable {
 
   public static let defaultSearchPaths = [
     "/opt/homebrew/bin/tart",
-    "/usr/local/bin/tart",
   ]
 
   private let searchPaths: [String]
@@ -52,19 +51,12 @@ public struct TartLocator: Sendable {
   }
 
   public static let userOverrideDefaultsKey = "TartUIBinaryPath"
-  public static let legacyUserOverrideDefaultsKey = "TartProBinaryPath"
 
   public static func storedUserOverride(defaults: UserDefaults = .standard) -> String? {
-    if let current = defaults.string(forKey: userOverrideDefaultsKey), !current.isEmpty {
-      return current
-    }
-
-    guard let legacy = defaults.string(forKey: legacyUserOverrideDefaultsKey), !legacy.isEmpty else {
+    guard let current = defaults.string(forKey: userOverrideDefaultsKey), !current.isEmpty else {
       return nil
     }
-
-    defaults.set(legacy, forKey: userOverrideDefaultsKey)
-    return legacy
+    return current
   }
 
   /// Resolution order:

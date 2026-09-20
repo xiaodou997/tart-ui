@@ -54,7 +54,6 @@
 "Checking…" = "Checking…";
 "Check and Apply" = "Check and Apply";
 "tart Executable" = "tart Executable";
-"By default, TartUI checks /opt/homebrew/bin and /usr/local/bin.\nApps launched from Finder do not inherit Terminal's PATH, so specify the path here if tart is installed elsewhere." = "By default, TartUI checks /opt/homebrew/bin and /usr/local/bin.\nApps launched from Finder do not inherit Terminal's PATH, so specify the path here if tart is installed elsewhere.";
 "Choose the tart executable" = "Choose the tart executable";
 "Found tart %@." = "Found tart %@.";
 "Prune Disk Space" = "Prune Disk Space";

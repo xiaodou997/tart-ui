@@ -262,15 +262,9 @@ struct LocatorTests {
     }
   }
 
-  @Test("优先命中排在前面的已知安装位置")
-  func prefersEarlierSearchPath() throws {
-    let locator = TartLocator(
-      searchPaths: ["/opt/homebrew/bin/tart", "/usr/local/bin/tart"],
-      pathEnvironment: nil,
-      isExecutableFile: { _ in true }
-    )
-
-    #expect(try locator.locate().path == "/opt/homebrew/bin/tart")
+  @Test("Apple Silicon 默认只探测 Homebrew 的标准路径")
+  func defaultSearchPathIsAppleSiliconHomebrew() {
+    #expect(TartLocator.defaultSearchPaths == ["/opt/homebrew/bin/tart"])
   }
 
   @Test("系统安装优先于 TartUI 托管运行时")

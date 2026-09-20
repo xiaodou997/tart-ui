@@ -80,7 +80,6 @@ final class VMStore {
         defaults.set(override, forKey: TartLocator.userOverrideDefaultsKey)
       } else {
         defaults.removeObject(forKey: TartLocator.userOverrideDefaultsKey)
-        defaults.removeObject(forKey: TartLocator.legacyUserOverrideDefaultsKey)
       }
 
       await activate(runtime: runtime, client: client, version: version)
@@ -108,7 +107,6 @@ final class VMStore {
 
       let defaults = UserDefaults.standard
       defaults.removeObject(forKey: TartLocator.userOverrideDefaultsKey)
-      defaults.removeObject(forKey: TartLocator.legacyUserOverrideDefaultsKey)
 
       await activate(runtime: runtime, client: client, version: version)
       latestOfficialTartVersion = version
