@@ -7,7 +7,8 @@ struct TartUIApp: App {
   @State private var languageStore = AppLanguageStore()
   @State private var hasBootstrapped = false
   @State private var selection: VMListEntry.ID?
-  @State private var isCreating = false
+  @State private var creationKind: CreateVMKind?
+  @State private var isCloningImage = false
   @State private var isPulling = false
   @State private var isManagingRegistry = false
   @State private var isPruning = false
@@ -38,8 +39,11 @@ struct TartUIApp: App {
             .toolbar {
               ToolbarItem {
                 Menu {
-                  Button(L10n.text("Create VM…")) { isCreating = true }
-                  Button(L10n.text("Pull Image…")) { isPulling = true }
+                  Button(L10n.text("Clone Image…")) { isCloningImage = true }
+                  Button(L10n.text("Create macOS VM…")) { creationKind = .macOS }
+                  Button(L10n.text("Create Linux VM…")) { creationKind = .linux }
+                  Divider()
+                  Button(L10n.text("Cache Image…")) { isPulling = true }
                   Button(L10n.text("Import from File…")) { importVM() }
                   Divider()
                   Button(L10n.text("Prune Disk Space…")) { isPruning = true }
@@ -52,14 +56,25 @@ struct TartUIApp: App {
           } detail: {
             detailPane
           }
-          .sheet(isPresented: $isCreating) {
-            CreateVMSheet(existingNames: Set(store.entries.map(\.name))) { name, source, diskSize, format in
+          .sheet(item: $creationKind) { kind in
+            CreateVMSheet(
+              kind: kind,
+              existingNames: Set(store.entries.map(\.name))
+            ) { name, source, diskSize, format in
               store.createVM(name: name, source: source, diskSizeGB: diskSize, diskFormat: format)
             }
           }
+          .sheet(isPresented: $isCloningImage) {
+            CloneImageSheet(
+              existingNames: Set(store.entries.map(\.name)),
+              cachedReferences: store.ociEntries.map(\.name)
+            ) { source, newName, insecure in
+              store.cloneVM(source: source, newName: newName, insecure: insecure)
+            }
+          }
           .sheet(isPresented: $isPulling) {
-            PullImageSheet(recentReferences: store.ociEntries.map(\.name)) { reference, insecure, concurrency in
-              store.pull(reference: reference, insecure: insecure, concurrency: concurrency)
+            PullImageSheet { reference, insecure in
+              store.pull(reference: reference, insecure: insecure)
             }
           }
           .sheet(isPresented: $isPruning) {
@@ -141,7 +156,82 @@ struct TartUIApp: App {
     if let entry = store.entry(id: selection) {
       VMDetailView(store: store, entry: entry)
     } else {
-      ContentUnavailableView(L10n.text("No VM Selected"), systemImage: "sidebar.left")
+      HomeActionsView(
+        onCloneImage: { isCloningImage = true },
+        onCreateMacOS: { creationKind = .macOS },
+        onCreateLinux: { creationKind = .linux },
+        onCacheImage: { isPulling = true }
+      )
     }
+  }
+}
+
+private struct HomeActionsView: View {
+  let onCloneImage: () -> Void
+  let onCreateMacOS: () -> Void
+  let onCreateLinux: () -> Void
+  let onCacheImage: () -> Void
+
+  var body: some View {
+    VStack(spacing: 22) {
+      VStack(spacing: 6) {
+        Image(systemName: "desktopcomputer")
+          .font(.system(size: 34))
+          .foregroundStyle(.secondary)
+
+        Text(L10n.text("Create or Clone a VM"))
+          .font(.title2.weight(.semibold))
+
+        Text(L10n.text("Most VMs start from an existing OCI image. Clone one into a local VM, or create a blank VM when you need one."))
+          .font(.callout)
+          .foregroundStyle(.secondary)
+          .multilineTextAlignment(.center)
+          .frame(maxWidth: 520)
+      }
+
+      HStack(spacing: 12) {
+        Button(action: onCloneImage) {
+          VStack(spacing: 7) {
+            Image(systemName: "square.and.arrow.down.on.square")
+              .font(.title3)
+            Text(L10n.text("Clone Image"))
+              .font(.headline)
+            Text(L10n.text("Recommended"))
+              .font(.caption)
+              .foregroundStyle(.secondary)
+          }
+          .frame(width: 155, height: 86)
+        }
+        .buttonStyle(.borderedProminent)
+
+        Button(action: onCreateMacOS) {
+          VStack(spacing: 7) {
+            Image(systemName: "apple.logo")
+              .font(.title3)
+            Text(L10n.text("Create macOS VM"))
+              .font(.headline)
+          }
+          .frame(width: 155, height: 86)
+        }
+        .buttonStyle(.bordered)
+
+        Button(action: onCreateLinux) {
+          VStack(spacing: 7) {
+            Image(systemName: "terminal")
+              .font(.title3)
+            Text(L10n.text("Create Linux VM"))
+              .font(.headline)
+          }
+          .frame(width: 155, height: 86)
+        }
+        .buttonStyle(.bordered)
+      }
+
+      Button(L10n.text("Cache Image Only…"), action: onCacheImage)
+        .buttonStyle(.borderless)
+        .help(L10n.text("Run tart pull without creating a local VM"))
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .padding(32)
   }
 }

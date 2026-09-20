@@ -343,3 +343,24 @@
 "Delete Cache" = "删除缓存";
 "Delete Cached Image" = "删除缓存镜像";
 "CLI" = "CLI";
+
+/* Simplified Create / Clone / Pull */
+"Clone Image…" = "克隆镜像…";
+"Create macOS VM…" = "创建 macOS 虚拟机…";
+"Create Linux VM…" = "创建 Linux 虚拟机…";
+"Cache Image…" = "缓存镜像…";
+"Create or Clone a VM" = "创建或克隆虚拟机";
+"Most VMs start from an existing OCI image. Clone one into a local VM, or create a blank VM when you need one." = "大多数虚拟机从现有 OCI 镜像开始。可以直接克隆成可运行的本地虚拟机，也可以按需创建空白虚拟机。";
+"Clone Image" = "克隆镜像";
+"Recommended" = "推荐";
+"Create macOS VM" = "创建 macOS 虚拟机";
+"Create Linux VM" = "创建 Linux 虚拟机";
+"Cache Image Only…" = "仅缓存镜像…";
+"Run tart pull without creating a local VM" = "只执行 tart pull，不创建本地虚拟机";
+"Installation" = "安装";
+"Cached Images" = "已缓存镜像";
+"Local VM Name" = "本地虚拟机名称";
+"Clone downloads the image when needed and creates a runnable local VM." = "Clone 会在需要时下载镜像，并直接创建可运行的本地虚拟机。";
+"Cache Image" = "缓存镜像";
+"Caching runs tart pull only. It does not create a runnable local VM." = "缓存只执行 tart pull，不会创建可运行的本地虚拟机。";
+"Cache" = "缓存";

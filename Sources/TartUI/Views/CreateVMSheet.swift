@@ -1,23 +1,27 @@
 import SwiftUI
 import TartKit
 
-/// 新建虚拟机。
+enum CreateVMKind: String, Identifiable {
+  case macOS
+  case linux
+
+  var id: String { rawValue }
+}
+
+/// Focused VM creation flow. The VM type is chosen before the sheet opens so
+/// users do not have to pass through a generic creation wizard first.
 struct CreateVMSheet: View {
+  let kind: CreateVMKind
   let existingNames: Set<String>
   let onCreate: (String, VMCreationSource, UInt?, DiskFormat?) -> Void
 
   @Environment(\.dismiss) private var dismiss
 
   @State private var name = ""
-  @State private var kind: Kind = .macOS
   @State private var ipswSource: IPSWSource = .latest
   @State private var ipswPath = ""
   @State private var diskSizeGB = 50.0
   @State private var diskFormat: DiskFormat = .raw
-
-  private enum Kind: Hashable {
-    case macOS, linux
-  }
 
   private enum IPSWSource: Hashable {
     case latest, custom
@@ -25,7 +29,7 @@ struct CreateVMSheet: View {
 
   var body: some View {
     VStack(spacing: 0) {
-      Text(L10n.text("Create VM"))
+      Text(L10n.text(kind == .macOS ? "Create macOS VM" : "Create Linux VM"))
         .font(.headline)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
@@ -43,16 +47,10 @@ struct CreateVMSheet: View {
           }
         }
 
-        Section(L10n.text("System")) {
-          Picker(L10n.text("Type"), selection: $kind) {
-            Text("macOS").tag(Kind.macOS)
-            Text("Linux").tag(Kind.linux)
-          }
-          .pickerStyle(.segmented)
-
-          if kind == .macOS {
+        if kind == .macOS {
+          Section(L10n.text("Installation")) {
             Picker(L10n.text("Installation Source"), selection: $ipswSource) {
-              Text(L10n.text("Download Latest")) .tag(IPSWSource.latest)
+              Text(L10n.text("Download Latest")).tag(IPSWSource.latest)
               Text(L10n.text("Specify IPSW")).tag(IPSWSource.custom)
             }
 
@@ -66,9 +64,11 @@ struct CreateVMSheet: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }
-          } else {
+          }
+        } else {
+          Section(L10n.text("Linux")) {
             Text(L10n.text("This creates a blank Linux VM. Attach installation media before starting it."))
-              .font(.caption)
+              .font(.callout)
               .foregroundStyle(.secondary)
           }
         }
@@ -88,14 +88,20 @@ struct CreateVMSheet: View {
           }
 
           if diskFormat == .asif && !isTahoeOrLater {
-            // ASIF 需要 macOS 26，低版本上创建会失败。
-            Label(L10n.text("This macOS version does not support ASIF; creation will fail."), systemImage: "exclamationmark.octagon.fill")
-              .font(.caption)
-              .foregroundStyle(.red)
+            Label(
+              L10n.text("This macOS version does not support ASIF; creation will fail."),
+              systemImage: "exclamationmark.octagon.fill"
+            )
+            .font(.caption)
+            .foregroundStyle(.red)
           }
         }
       }
       .formStyle(.grouped)
+
+      RunCommandPreview(command: renderTartCommand(createArguments))
+        .padding(.horizontal)
+        .padding(.bottom, 12)
 
       Divider()
 
@@ -112,14 +118,31 @@ struct CreateVMSheet: View {
       }
       .padding()
     }
-    .frame(width: 520, height: 520)
+    .frame(width: 540, height: kind == .macOS ? 540 : 470)
   }
 
   private var source: VMCreationSource {
     switch kind {
-    case .linux: .linux
-    case .macOS: ipswSource == .latest ? .latestMacOS : .macOSFromIPSW(ipswPath)
+    case .linux:
+      return .linux
+    case .macOS:
+      return ipswSource == .latest ? .latestMacOS : .macOSFromIPSW(ipswPath)
     }
+  }
+
+  private var createArguments: [String] {
+    var arguments = ["create", name]
+
+    switch source {
+    case let .macOSFromIPSW(path):
+      arguments += ["--from-ipsw", path]
+    case .linux:
+      arguments.append("--linux")
+    }
+
+    arguments += ["--disk-size", String(Int(diskSizeGB))]
+    arguments += ["--disk-format", diskFormat.rawValue]
+    return arguments
   }
 
   private var nameIssue: String? {
@@ -128,7 +151,6 @@ struct CreateVMSheet: View {
       return "A VM with this name already exists."
     }
     if name.contains("/") || name.contains(":") {
-      // 这两个字符在 OCI 引用里有特殊含义，用作本地名字会造成歧义。
       return "Names cannot contain slash or colon."
     }
     return nil
@@ -170,7 +192,6 @@ struct CloneVMSheet: View {
   @State private var newName: String
   @State private var showAdvanced = false
   @State private var insecure = false
-  @State private var concurrency = 4.0
 
   init(
     sourceName: String,
@@ -212,15 +233,6 @@ struct CloneVMSheet: View {
 
         Section {
           DisclosureGroup(L10n.text("Advanced Options"), isExpanded: $showAdvanced) {
-            HStack {
-              Text(L10n.text("Network Concurrency"))
-              Slider(value: $concurrency, in: 1...16, step: 1)
-              Text("\(Int(concurrency))")
-                .monospacedDigit()
-                .frame(width: 30)
-            }
-            .help(L10n.text("Number of concurrent connections used when pulling from a registry"))
-
             Toggle(L10n.text("Allow Insecure HTTP"), isOn: $insecure)
               .help(L10n.text("Only needed for private registries on an internal network"))
           }
@@ -245,7 +257,7 @@ struct CloneVMSheet: View {
         Button(L10n.text("Cancel")) { dismiss() }
           .keyboardShortcut(.cancelAction)
         Button(L10n.text("Clone")) {
-          onClone(sourceName, newName, insecure, showAdvanced ? UInt(concurrency) : nil)
+          onClone(sourceName, newName, insecure, nil)
           dismiss()
         }
         .keyboardShortcut(.defaultAction)
@@ -261,10 +273,6 @@ struct CloneVMSheet: View {
 
     if insecure {
       arguments.append("--insecure")
-    }
-
-    if showAdvanced {
-      arguments += ["--concurrency", String(Int(concurrency))]
     }
 
     return arguments

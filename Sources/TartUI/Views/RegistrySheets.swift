@@ -1,28 +1,28 @@
 import SwiftUI
 import TartKit
 
-/// 从 OCI 仓库拉取镜像。
-struct PullImageSheet: View {
-  let recentReferences: [String]
-  let onPull: (String, Bool, UInt?) -> Void
+private let commonImageReferences = [
+  "ghcr.io/cirruslabs/macos-sequoia-base:latest",
+  "ghcr.io/cirruslabs/macos-sequoia-xcode:latest",
+  "ghcr.io/cirruslabs/ubuntu:latest",
+]
+
+/// Primary registry flow: clone an OCI image directly into a runnable local VM.
+struct CloneImageSheet: View {
+  let existingNames: Set<String>
+  let cachedReferences: [String]
+  let onClone: (String, String, Bool) -> Void
 
   @Environment(\.dismiss) private var dismiss
 
   @State private var reference = ""
+  @State private var newName = ""
   @State private var insecure = false
-  @State private var concurrency = 4.0
   @State private var showAdvanced = false
-
-  /// 官方提供的常用基础镜像，省得用户去查完整引用。
-  private let suggestions = [
-    "ghcr.io/cirruslabs/macos-sequoia-base:latest",
-    "ghcr.io/cirruslabs/macos-sequoia-xcode:latest",
-    "ghcr.io/cirruslabs/ubuntu:latest",
-  ]
 
   var body: some View {
     VStack(spacing: 0) {
-      Text(L10n.text("Pull Image"))
+      Text(L10n.text("Clone Image"))
         .font(.headline)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
@@ -31,29 +31,158 @@ struct PullImageSheet: View {
 
       Form {
         Section(L10n.text("Image Reference")) {
-          TextField(L10n.text("Reference"), text: $reference, prompt: Text(L10n.text("e.g. ghcr.io/cirruslabs/ubuntu:latest")))
-            .onSubmit { commitIfValid() }
+          TextField(
+            L10n.text("Reference"),
+            text: $reference,
+            prompt: Text(L10n.text("e.g. ghcr.io/cirruslabs/ubuntu:latest"))
+          )
         }
 
-        if !recentReferences.isEmpty {
-          Section(L10n.text("Already Local")) {
-            ForEach(recentReferences.prefix(5), id: \.self) { item in
-              Button {
-                reference = item
-              } label: {
-                Text(item)
-                  .font(.system(.caption, design: .monospaced))
-                  .lineLimit(1)
-                  .truncationMode(.middle)
-                  .frame(maxWidth: .infinity, alignment: .leading)
-              }
-              .buttonStyle(.plain)
+        if !cachedReferences.isEmpty {
+          Section(L10n.text("Cached Images")) {
+            ForEach(cachedReferences.prefix(4), id: \.self) { item in
+              imageReferenceButton(item)
             }
           }
         }
 
         Section(L10n.text("Suggested Images")) {
-          ForEach(suggestions, id: \.self) { item in
+          ForEach(commonImageReferences, id: \.self) { item in
+            imageReferenceButton(item)
+          }
+        }
+
+        Section(L10n.text("Local VM Name")) {
+          TextField(L10n.text("Name"), text: $newName, prompt: Text(L10n.text("e.g. dev-machine")))
+
+          if let issue = nameIssue {
+            Label(L10n.text(issue), systemImage: "exclamationmark.triangle.fill")
+              .font(.caption)
+              .foregroundStyle(.orange)
+          }
+        }
+
+        Section {
+          DisclosureGroup(L10n.text("Advanced Options"), isExpanded: $showAdvanced) {
+            Toggle(L10n.text("Allow Insecure HTTP"), isOn: $insecure)
+              .help(L10n.text("Only needed for private registries on an internal network"))
+          }
+        } footer: {
+          Text(L10n.text("Clone downloads the image when needed and creates a runnable local VM."))
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+      }
+      .formStyle(.grouped)
+
+      RunCommandPreview(command: renderTartCommand(cloneArguments))
+        .padding(.horizontal)
+        .padding(.bottom, 12)
+
+      Divider()
+
+      HStack {
+        Spacer()
+        Button(L10n.text("Cancel")) { dismiss() }
+          .keyboardShortcut(.cancelAction)
+        Button(L10n.text("Clone")) {
+          onClone(reference, newName, insecure)
+          dismiss()
+        }
+        .keyboardShortcut(.defaultAction)
+        .disabled(!canClone)
+      }
+      .padding()
+    }
+    .frame(width: 560, height: 560)
+  }
+
+  private var cloneArguments: [String] {
+    var arguments = ["clone", reference, newName]
+    if insecure {
+      arguments.append("--insecure")
+    }
+    return arguments
+  }
+
+  private var nameIssue: String? {
+    guard !newName.isEmpty else { return nil }
+    if existingNames.contains(newName) {
+      return "A VM with this name already exists."
+    }
+    if newName.contains("/") || newName.contains(":") {
+      return "Names cannot contain slash or colon."
+    }
+    return nil
+  }
+
+  private var canClone: Bool {
+    !reference.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      && !newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      && nameIssue == nil
+  }
+
+  private func imageReferenceButton(_ item: String) -> some View {
+    Button {
+      reference = item
+      if newName.isEmpty {
+        newName = suggestedName(from: item)
+      }
+    } label: {
+      Text(item)
+        .font(.system(.caption, design: .monospaced))
+        .lineLimit(1)
+        .truncationMode(.middle)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+    .buttonStyle(.plain)
+  }
+
+  private func suggestedName(from source: String) -> String {
+    let lastComponent = source.split(separator: "/").last.map(String.init) ?? source
+    let withoutTag = lastComponent.split(separator: ":").first.map(String.init) ?? lastComponent
+    let base = withoutTag.isEmpty ? "clone" : withoutTag
+
+    guard existingNames.contains(base) else { return base }
+
+    for index in 2...99 where !existingNames.contains("\(base)-\(index)") {
+      return "\(base)-\(index)"
+    }
+    return base
+  }
+}
+
+/// Secondary registry flow: cache an OCI image locally without creating a VM.
+struct PullImageSheet: View {
+  let onPull: (String, Bool) -> Void
+
+  @Environment(\.dismiss) private var dismiss
+
+  @State private var reference = ""
+  @State private var insecure = false
+  @State private var showAdvanced = false
+
+  var body: some View {
+    VStack(spacing: 0) {
+      Text(L10n.text("Cache Image"))
+        .font(.headline)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+
+      Divider()
+
+      Form {
+        Section(L10n.text("Image Reference")) {
+          TextField(
+            L10n.text("Reference"),
+            text: $reference,
+            prompt: Text(L10n.text("e.g. ghcr.io/cirruslabs/ubuntu:latest"))
+          )
+          .onSubmit { commitIfValid() }
+        }
+
+        Section(L10n.text("Suggested Images")) {
+          ForEach(commonImageReferences, id: \.self) { item in
             Button {
               reference = item
             } label: {
@@ -69,20 +198,19 @@ struct PullImageSheet: View {
 
         Section {
           DisclosureGroup(L10n.text("Advanced Options"), isExpanded: $showAdvanced) {
-            HStack {
-              Text(L10n.text("Network Concurrency"))
-              Slider(value: $concurrency, in: 1...16, step: 1)
-              Text(String(Int(concurrency))).monospacedDigit().frame(width: 30)
-            }
             Toggle(L10n.text("Allow Insecure HTTP"), isOn: $insecure)
           }
         } footer: {
-          Text(L10n.text("Images are often tens of GB and may take a while to download. You can continue using other features during the pull."))
+          Text(L10n.text("Caching runs tart pull only. It does not create a runnable local VM."))
             .font(.caption)
             .foregroundStyle(.secondary)
         }
       }
       .formStyle(.grouped)
+
+      RunCommandPreview(command: renderTartCommand(pullArguments))
+        .padding(.horizontal)
+        .padding(.bottom, 12)
 
       Divider()
 
@@ -90,18 +218,27 @@ struct PullImageSheet: View {
         Spacer()
         Button(L10n.text("Cancel")) { dismiss() }
           .keyboardShortcut(.cancelAction)
-        Button(L10n.text("Pull")) { commitIfValid() }
+        Button(L10n.text("Cache")) { commitIfValid() }
           .keyboardShortcut(.defaultAction)
-          .disabled(reference.isEmpty)
+          .disabled(reference.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
       }
       .padding()
     }
-    .frame(width: 540, height: 520)
+    .frame(width: 540, height: 470)
+  }
+
+  private var pullArguments: [String] {
+    var arguments = ["pull", reference]
+    if insecure {
+      arguments.append("--insecure")
+    }
+    return arguments
   }
 
   private func commitIfValid() {
-    guard !reference.isEmpty else { return }
-    onPull(reference, insecure, UInt(concurrency))
+    let trimmed = reference.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return }
+    onPull(trimmed, insecure)
     dismiss()
   }
 }

@@ -344,3 +344,24 @@
 "Delete Cache" = "Delete Cache";
 "Delete Cached Image" = "Delete Cached Image";
 "CLI" = "CLI";
+
+/* Simplified Create / Clone / Pull */
+"Clone Image…" = "Clone Image…";
+"Create macOS VM…" = "Create macOS VM…";
+"Create Linux VM…" = "Create Linux VM…";
+"Cache Image…" = "Cache Image…";
+"Create or Clone a VM" = "Create or Clone a VM";
+"Most VMs start from an existing OCI image. Clone one into a local VM, or create a blank VM when you need one." = "Most VMs start from an existing OCI image. Clone one into a local VM, or create a blank VM when you need one.";
+"Clone Image" = "Clone Image";
+"Recommended" = "Recommended";
+"Create macOS VM" = "Create macOS VM";
+"Create Linux VM" = "Create Linux VM";
+"Cache Image Only…" = "Cache Image Only…";
+"Run tart pull without creating a local VM" = "Run tart pull without creating a local VM";
+"Installation" = "Installation";
+"Cached Images" = "Cached Images";
+"Local VM Name" = "Local VM Name";
+"Clone downloads the image when needed and creates a runnable local VM." = "Clone downloads the image when needed and creates a runnable local VM.";
+"Cache Image" = "Cache Image";
+"Caching runs tart pull only. It does not create a runnable local VM." = "Caching runs tart pull only. It does not create a runnable local VM.";
+"Cache" = "Cache";
