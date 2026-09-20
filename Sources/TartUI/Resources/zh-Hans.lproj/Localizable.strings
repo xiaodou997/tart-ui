@@ -321,3 +321,15 @@
 "Automatic detection checks standard Homebrew locations and PATH first, then falls back to a TartUI-managed runtime. A manual path is saved only after it passes validation." = "自动探测会先检查标准 Homebrew 路径和 PATH，最后才使用 TartUI 托管运行时。手动路径只有验证成功后才会保存。";
 "Using tart %@." = "正在使用 tart %@。";
 "Managed Tart" = "托管 Tart";
+
+/* Simplified Run Profile */
+"Launch" = "启动";
+"Window" = "窗口";
+"Headless" = "无图形界面";
+"Screen Sharing" = "屏幕共享";
+"Allow Suspend" = "允许挂起";
+"Directory Sharing" = "目录共享";
+"Softnet uses Tart defaults. Existing allow, block, and port-forward rules are preserved in the command preview." = "Softnet 使用 Tart 默认设置。旧配置中的放行、阻止和端口转发规则会继续保留，并显示在下方命令预览中。";
+"Legacy Advanced Options" = "旧版高级选项";
+"This profile contains advanced options from an earlier TartUI version. They are preserved and remain visible in the command preview." = "此配置包含旧版 TartUI 的高级选项。这些参数会继续保留，并显示在下方命令预览中。";
+"Remove Legacy Advanced Options" = "移除旧版高级选项";
