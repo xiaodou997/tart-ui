@@ -10,6 +10,7 @@ CONFIG="${1:-debug}"
 APP_NAME="TartUI"
 BUNDLE_ID="com.tartui.app"
 VERSION="${TARTUI_VERSION:-0.1.0}"
+BUILD_NUMBER="${TARTUI_BUILD_NUMBER:-$VERSION}"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
@@ -87,7 +88,7 @@ cat > "$APP_DIR/Contents/Info.plist" <<PLIST
   <key>CFBundleShortVersionString</key>
   <string>$VERSION</string>
   <key>CFBundleVersion</key>
-  <string>$VERSION</string>
+  <string>$BUILD_NUMBER</string>
   <key>CFBundleDevelopmentRegion</key>
   <string>en</string>
   <key>CFBundleLocalizations</key>
@@ -108,8 +109,14 @@ plutil -lint "$APP_DIR/Contents/Info.plist" >/dev/null
 
 detect_signing_identity
 echo "==> Sign ($SIGN_DESCRIPTION)"
-codesign --force --sign "$SIGN_IDENTITY" "$APP_DIR"
-codesign --verify --deep --strict "$APP_DIR"
+
+SIGN_ARGS=(--force --sign "$SIGN_IDENTITY")
+if [[ "$SIGN_DESCRIPTION" == Developer\ ID* ]]; then
+  SIGN_ARGS+=(--options runtime --timestamp)
+fi
+
+codesign "${SIGN_ARGS[@]}" "$APP_DIR"
+codesign --verify --deep --strict --verbose=2 "$APP_DIR"
 
 echo "==> Done: $APP_DIR"
 echo "    Run: open \"$APP_DIR\""

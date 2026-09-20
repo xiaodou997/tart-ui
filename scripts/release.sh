@@ -1,13 +1,15 @@
 #!/bin/bash
 #
-# 构建并公证一个可直接分发的 TartUI DMG。
+# Build, notarize and package a distributable TartUI release.
 #
-# 前置条件：
-#   - 已安装 Developer ID Application 证书；
-#   - 已用 xcrun notarytool store-credentials 保存公证 profile；
-#   - 设置 TARTUI_NOTARY_PROFILE。
+# Prerequisites:
+#   - Developer ID Application certificate installed in the active keychain;
+#   - a notarytool keychain profile created with:
+#       xcrun notarytool store-credentials <profile> ...
+#   - TARTUI_NOTARY_PROFILE set to that profile name.
 #
-# 用法：TARTUI_VERSION=0.1.0 TARTUI_NOTARY_PROFILE=tartui ./scripts/release.sh
+# Usage:
+#   TARTUI_VERSION=0.1.0 TARTUI_NOTARY_PROFILE=tartui ./scripts/release.sh
 
 set -euo pipefail
 
@@ -15,56 +17,88 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
 VERSION="${TARTUI_VERSION:-0.1.0}"
+BUILD_NUMBER="${TARTUI_BUILD_NUMBER:-$VERSION}"
 NOTARY_PROFILE="${TARTUI_NOTARY_PROFILE:-}"
+
 if [ -z "$NOTARY_PROFILE" ]; then
-  echo "错误：请设置 TARTUI_NOTARY_PROFILE。" >&2
+  echo "Error: TARTUI_NOTARY_PROFILE is required." >&2
   exit 1
 fi
 
-# bundle.sh 会优先选择 Developer ID Application；这里提前阻止误把临时签名
-# 上传到公证服务，避免浪费一轮构建等待。
 if [ -z "${TARTUI_SIGN_IDENTITY:-}" ]; then
   IDENTITIES="$(security find-identity -v -p codesigning 2>/dev/null || true)"
   if ! echo "$IDENTITIES" | grep -q "Developer ID Application"; then
-    echo "错误：没有找到 Developer ID Application 证书。" >&2
+    echo "Error: no Developer ID Application certificate was found." >&2
     exit 1
   fi
 fi
 
 DIST="$ROOT/dist"
-ZIP="$DIST/TartUI-$VERSION.zip"
+FINAL_ZIP="$DIST/TartUI-$VERSION.zip"
+NOTARY_ZIP="$DIST/.TartUI-$VERSION-notary.zip"
 DMG="$DIST/TartUI-$VERSION.dmg"
+CHECKSUMS="$DIST/SHA256SUMS"
+STAGING="$DIST/dmg-root"
 
 rm -rf "$DIST"
 mkdir -p "$DIST"
 
-TARTUI_VERSION="$VERSION" "$ROOT/scripts/bundle.sh" release
+echo "==> Build signed release app"
+TARTUI_VERSION="$VERSION" \
+TARTUI_BUILD_NUMBER="$BUILD_NUMBER" \
+  "$ROOT/scripts/bundle.sh" release
 
 BIN_PATH="$(swift build -c release --product TartUI --show-bin-path)"
 APP="$BIN_PATH/TartUI.app"
 
 if [ ! -d "$APP" ]; then
-  echo "错误：没有找到 release App：$APP" >&2
+  echo "Error: release app was not found at $APP" >&2
   exit 1
 fi
 
-echo "==> 公证提交"
-ditto -c -k --keepParent "$APP" "$ZIP"
-xcrun notarytool submit "$ZIP" --keychain-profile "$NOTARY_PROFILE" --wait
+codesign --verify --deep --strict --verbose=2 "$APP"
 
-echo "==> 固化公证票据"
+echo "==> Notarize app"
+ditto -c -k --keepParent "$APP" "$NOTARY_ZIP"
+xcrun notarytool submit "$NOTARY_ZIP" --keychain-profile "$NOTARY_PROFILE" --wait
 xcrun stapler staple "$APP"
+xcrun stapler validate "$APP"
+rm -f "$NOTARY_ZIP"
 
-echo "==> 生成 DMG"
+echo "==> Create final ZIP"
+ditto -c -k --keepParent "$APP" "$FINAL_ZIP"
+
+echo "==> Create DMG"
+rm -rf "$STAGING"
+mkdir -p "$STAGING"
+cp -R "$APP" "$STAGING/TartUI.app"
+ln -s /Applications "$STAGING/Applications"
+
 hdiutil create \
   -volname "TartUI $VERSION" \
-  -srcfolder "$APP" \
+  -srcfolder "$STAGING" \
   -ov \
   -format UDZO \
   "$DMG"
 
-rm -f "$ZIP"
-xcrun stapler validate "$APP"
-codesign --verify --deep --strict "$APP"
+rm -rf "$STAGING"
 
-echo "完成：$DMG"
+echo "==> Notarize DMG"
+xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --wait
+xcrun stapler staple "$DMG"
+xcrun stapler validate "$DMG"
+
+echo "==> Verify release artifacts"
+codesign --verify --deep --strict --verbose=2 "$APP"
+spctl --assess --type execute --verbose=2 "$APP"
+
+(
+  cd "$DIST"
+  shasum -a 256 "TartUI-$VERSION.zip" "TartUI-$VERSION.dmg" > "SHA256SUMS"
+)
+
+echo ""
+echo "Release artifacts:"
+echo "  $FINAL_ZIP"
+echo "  $DMG"
+echo "  $CHECKSUMS"
