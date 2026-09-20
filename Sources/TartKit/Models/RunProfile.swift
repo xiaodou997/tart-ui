@@ -135,22 +135,7 @@ extension RunProfile {
   /// valid shell command too. Quote only when necessary so simple commands stay
   /// easy to read.
   public func command(vmName: String, executable: String = "tart") -> String {
-    ([executable] + arguments(vmName: vmName))
-      .map(Self.shellQuote)
-      .joined(separator: " ")
-  }
-
-  private static func shellQuote(_ argument: String) -> String {
-    guard !argument.isEmpty else { return "''" }
-
-    let safe = CharacterSet.alphanumerics
-      .union(CharacterSet(charactersIn: "-._/:=,+@%~"))
-
-    if argument.unicodeScalars.allSatisfy({ safe.contains($0) }) {
-      return argument
-    }
-
-    return "'" + argument.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    CommandAction(arguments: arguments(vmName: vmName), executable: executable).command
   }
 
   private func networkArguments() -> [String] {

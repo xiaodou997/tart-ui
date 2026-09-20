@@ -2,7 +2,6 @@ import Foundation
 import Observation
 import TartKit
 
-/// 一次长时后台操作（创建、克隆、拉取镜像等）。
 @Observable
 @MainActor
 final class BackgroundOperation: Identifiable {
@@ -18,32 +17,83 @@ final class BackgroundOperation: Identifiable {
     }
   }
 
+  enum OutputStream: String {
+    case stdout
+    case stderr
+  }
+
+  struct OutputLine: Identifiable {
+    let id = UUID()
+    let stream: OutputStream
+    let text: String
+  }
+
   let id = UUID()
-  /// 展示给用户的标题，如「克隆 base → dev」。
   let title: String
+  let action: CommandAction
+  let isCancellable: Bool
   let startedAt = Date()
 
   private(set) var state: State = .running
   private(set) var endedAt: Date?
+  private(set) var processIdentifier: Int32?
+  private(set) var exitCode: Int32?
+  private(set) var outputLines: [OutputLine] = []
 
-  /// 最近的输出行。长任务可能刷出大量进度，这里同样要限量。
-  private(set) var recentLines: [String] = []
   private let maxRetainedLines = 500
 
-  /// 最后一行输出，用于在紧凑的状态条上显示当前进展。
-  var latestLine: String? { recentLines.last }
-
-  init(title: String) {
+  init(title: String, action: CommandAction, isCancellable: Bool) {
     self.title = title
+    self.action = action
+    self.isCancellable = isCancellable
   }
 
-  func append(_ line: String) {
-    let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmed.isEmpty else { return }
+  var latestLine: OutputLine? { outputLines.last }
+  var stdoutLines: [String] { outputLines.filter { $0.stream == .stdout }.map(\.text) }
+  var stderrLines: [String] { outputLines.filter { $0.stream == .stderr }.map(\.text) }
 
-    recentLines.append(trimmed)
-    if recentLines.count > maxRetainedLines {
-      recentLines.removeFirst(recentLines.count - maxRetainedLines)
+  func markStarted(processIdentifier: Int32) {
+    self.processIdentifier = processIdentifier
+  }
+
+  func markExited(_ code: Int32) {
+    exitCode = code
+  }
+
+  func append(_ text: String, stream: OutputStream) {
+    let lines = text
+      .split(whereSeparator: { $0.isNewline })
+      .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+      .filter { !$0.isEmpty }
+
+    for line in lines {
+      outputLines.append(OutputLine(stream: stream, text: line))
+    }
+
+    if outputLines.count > maxRetainedLines {
+      outputLines.removeFirst(outputLines.count - maxRetainedLines)
+    }
+  }
+
+  func capture(_ result: CommandResult) {
+    markExited(result.exitCode)
+    append(result.stdout, stream: .stdout)
+    append(result.stderr, stream: .stderr)
+  }
+
+  func capture(_ error: any Error) {
+    guard let tartError = error as? TartError else { return }
+
+    switch tartError {
+    case let .commandFailed(_, code, stderr):
+      markExited(code)
+      append(stderr, stream: .stderr)
+    case let .decodingFailed(_, raw, _):
+      append(raw, stream: .stdout)
+    case .cancelled:
+      break
+    case .binaryNotFound, .binaryNotExecutable, .unsupportedVersion, .launchFailed:
+      break
     }
   }
 
@@ -56,9 +106,22 @@ final class BackgroundOperation: Identifiable {
   var duration: TimeInterval {
     (endedAt ?? Date()).timeIntervalSince(startedAt)
   }
+
+  func failureReason(defaultExitCode: Int32? = nil) -> String {
+    let stderrTail = stderrLines.suffix(3).joined(separator: "\n")
+    if !stderrTail.isEmpty { return stderrTail }
+
+    let outputTail = outputLines.suffix(3).map(\.text).joined(separator: "\n")
+    if !outputTail.isEmpty { return outputTail }
+
+    if let code = exitCode ?? defaultExitCode {
+      return L10n.format("Exit code %@", String(code))
+    }
+
+    return L10n.text("Command failed.")
+  }
 }
 
-/// 管理所有后台长时操作。
 @Observable
 @MainActor
 final class OperationCenter {
@@ -71,48 +134,46 @@ final class OperationCenter {
 
   var hasActiveWork: Bool { !activeOperations.isEmpty }
 
-  /// 跑一条流式命令，把输出汇集到一个可展示的操作对象上。
-  ///
-  /// - Parameter onSuccess: 成功后在主线程执行，通常用来刷新列表。
   @discardableResult
   func run(
     title: String,
+    action: CommandAction,
     stream: @escaping @Sendable () -> AsyncThrowingStream<CommandEvent, any Error>,
     onSuccess: @escaping @MainActor () async -> Void = {}
   ) -> BackgroundOperation {
-    let operation = BackgroundOperation(title: title)
+    let operation = BackgroundOperation(title: title, action: action, isCancellable: true)
     operations.append(operation)
 
     tasks[operation.id] = Task { [weak self] in
-      var exitCode: Int32 = 0
-
       do {
         for try await event in stream() {
           switch event {
-          case .started:
-            break
+          case let .started(processIdentifier):
+            operation.markStarted(processIdentifier: processIdentifier)
           case let .stdout(line):
-            operation.append(line)
+            operation.append(line, stream: .stdout)
           case let .stderr(line):
-            // tart 把进度信息写在 stderr 上，不能一见 stderr 就判定为失败。
-            operation.append(line)
+            operation.append(line, stream: .stderr)
           case let .exited(code):
-            exitCode = code
+            operation.markExited(code)
           }
         }
 
         if Task.isCancelled {
           operation.finish(state: .cancelled)
-        } else if exitCode == 0 {
+        } else if (operation.exitCode ?? 0) == 0 {
           operation.finish(state: .succeeded)
           await onSuccess()
         } else {
-          // 失败原因通常就在最后几行输出里。
-          let tail = operation.recentLines.suffix(3).joined(separator: "\n")
-          operation.finish(state: .failed(reason: tail.isEmpty ? L10n.format("Exit code %@", String(exitCode)) : tail))
+          operation.finish(state: .failed(reason: operation.failureReason()))
         }
       } catch {
-        operation.finish(state: .failed(reason: error.localizedDescription))
+        if Task.isCancelled {
+          operation.finish(state: .cancelled)
+        } else {
+          operation.capture(error)
+          operation.finish(state: .failed(reason: operation.failureReason()))
+        }
       }
 
       self?.tasks.removeValue(forKey: operation.id)
@@ -121,11 +182,41 @@ final class OperationCenter {
     return operation
   }
 
-  /// 中止一个正在进行的操作。
-  ///
-  /// 取消会终止子进程。对 clone 这类操作，tart 可能已经写入了部分数据，
-  /// 界面上需要提示用户可能留下未完成的虚拟机。
+  @discardableResult
+  func perform(
+    title: String,
+    action: CommandAction,
+    execute: @escaping @Sendable () async throws -> CommandResult,
+    onSuccess: @escaping @MainActor () async -> Void = {}
+  ) async throws -> CommandResult {
+    let operation = BackgroundOperation(title: title, action: action, isCancellable: false)
+    operations.append(operation)
+
+    do {
+      let result = try await execute()
+      operation.capture(result)
+
+      if result.succeeded {
+        operation.finish(state: .succeeded)
+        await onSuccess()
+      } else {
+        operation.finish(state: .failed(reason: operation.failureReason(defaultExitCode: result.exitCode)))
+      }
+
+      return result
+    } catch {
+      operation.capture(error)
+      if error is CancellationError {
+        operation.finish(state: .cancelled)
+      } else {
+        operation.finish(state: .failed(reason: operation.failureReason()))
+      }
+      throw error
+    }
+  }
+
   func cancel(_ operation: BackgroundOperation) {
+    guard operation.isCancellable else { return }
     tasks[operation.id]?.cancel()
     operation.finish(state: .cancelled)
   }
@@ -135,7 +226,6 @@ final class OperationCenter {
     operations.removeAll { $0.id == operation.id }
   }
 
-  /// 清掉所有已结束的操作记录。
   func clearFinished() {
     operations.removeAll { $0.state.isFinished }
   }

@@ -74,37 +74,60 @@ public struct TartClient: Sendable {
   /// `tart run` 是长驻前台进程：它不会「启动完就返回」，而是一直运行到虚拟机关闭。
   /// 所以这里给的是流，调用方需要持有它直到结束，
   /// 释放流会连带终止子进程（见 `TartExecutor.stream`）。
+  public func runAction(name: String, profile: RunProfile) -> CommandAction {
+    CommandAction(arguments: profile.arguments(vmName: name))
+  }
+
   public func runVM(name: String, profile: RunProfile) -> AsyncThrowingStream<CommandEvent, any Error> {
-    stream(profile.arguments(vmName: name))
+    stream(runAction(name: name, profile: profile))
   }
 
   /// 优雅关闭虚拟机。
   ///
   /// - Parameter timeout: 等待客户机自行关机的秒数，超时后强制断电。
   ///   传 nil 用 tart 的默认值。
-  public func stop(name: String, timeout: UInt? = nil) async throws {
+  public func stopAction(name: String, timeout: UInt? = nil) -> CommandAction {
     var arguments = ["stop", name]
     if let timeout {
       arguments += ["--timeout", String(timeout)]
     }
-    try await runChecked(arguments)
+    return CommandAction(arguments: arguments)
+  }
+
+  @discardableResult
+  public func stop(name: String, timeout: UInt? = nil) async throws -> CommandResult {
+    try await runChecked(stopAction(name: name, timeout: timeout))
   }
 
   /// 挂起虚拟机，把状态存到磁盘。
   ///
   /// 只对以 `--suspendable` 启动的虚拟机有效，否则 tart 会拒绝。
-  public func suspend(name: String) async throws {
-    try await runChecked(["suspend", name])
+  public func suspendAction(name: String) -> CommandAction {
+    CommandAction(arguments: ["suspend", name])
+  }
+
+  @discardableResult
+  public func suspend(name: String) async throws -> CommandResult {
+    try await runChecked(suspendAction(name: name))
   }
 
   // MARK: - 底层
 
   /// 流式执行命令，用于 pull / clone / create 这类长时操作。
+  public func stream(_ action: CommandAction) -> AsyncThrowingStream<CommandEvent, any Error> {
+    executor.stream(action.arguments)
+  }
+
   public func stream(_ arguments: [String]) -> AsyncThrowingStream<CommandEvent, any Error> {
-    executor.stream(arguments)
+    stream(CommandAction(arguments: arguments))
   }
 
   /// 执行命令，非零退出码一律转成 `TartError.commandFailed`。
+  @discardableResult
+  public func runChecked(_ action: CommandAction) async throws -> CommandResult {
+    try await runChecked(action.arguments)
+  }
+
   @discardableResult
   public func runChecked(_ arguments: [String]) async throws -> CommandResult {
     let result: CommandResult

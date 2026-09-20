@@ -23,17 +23,25 @@ extension TartClient {
   /// 把虚拟机导出成单个文件。
   ///
   /// 返回流：虚拟机有几十 GB，导出要写很久。
-  public func export(name: String, to path: String?) -> AsyncThrowingStream<CommandEvent, any Error> {
+  public func exportAction(name: String, to path: String?) -> CommandAction {
     var arguments = ["export", name]
     if let path, !path.isEmpty {
       arguments.append(path)
     }
-    return stream(arguments)
+    return CommandAction(arguments: arguments)
+  }
+
+  public func export(name: String, to path: String?) -> AsyncThrowingStream<CommandEvent, any Error> {
+    stream(exportAction(name: name, to: path))
+  }
+
+  public func importAction(from path: String, name: String) -> CommandAction {
+    CommandAction(arguments: ["import", path, name])
   }
 
   /// 从导出文件恢复虚拟机。
   public func importVM(from path: String, name: String) -> AsyncThrowingStream<CommandEvent, any Error> {
-    stream(["import", path, name])
+    stream(importAction(from: path, name: name))
   }
 
   // MARK: - 清理
@@ -45,20 +53,11 @@ extension TartClient {
   /// - Parameters:
   ///   - olderThanDays: 删除超过 n 天未访问的条目。
   ///   - spaceBudgetGB: 按最近访问顺序保留，把总占用压到 n GB 以内。
-  public func prune(
+  public func pruneAction(
     target: PruneTarget = .caches,
     olderThanDays: UInt? = nil,
     spaceBudgetGB: UInt? = nil
-  ) async throws {
-    // tart 要求至少给一个条件，否则会报参数错误。
-    guard olderThanDays != nil || spaceBudgetGB != nil else {
-      throw TartError.commandFailed(
-        command: ["prune"],
-        exitCode: 1,
-        stderr: "At least one prune criterion is required."
-      )
-    }
-
+  ) -> CommandAction {
     var arguments = ["prune", "--entries", target.rawValue]
 
     if let olderThanDays {
@@ -68,7 +67,28 @@ extension TartClient {
       arguments += ["--space-budget", String(spaceBudgetGB)]
     }
 
-    try await runChecked(arguments)
+    return CommandAction(arguments: arguments)
+  }
+
+  @discardableResult
+  public func prune(
+    target: PruneTarget = .caches,
+    olderThanDays: UInt? = nil,
+    spaceBudgetGB: UInt? = nil
+  ) async throws -> CommandResult {
+    guard olderThanDays != nil || spaceBudgetGB != nil else {
+      throw TartError.commandFailed(
+        command: ["prune"],
+        exitCode: 1,
+        stderr: "At least one prune criterion is required."
+      )
+    }
+
+    return try await runChecked(pruneAction(
+      target: target,
+      olderThanDays: olderThanDays,
+      spaceBudgetGB: spaceBudgetGB
+    ))
   }
 
   // MARK: - 在虚拟机内执行命令
@@ -80,6 +100,10 @@ extension TartClient {
   ///
   /// - Returns: 命令的输出和退出码。注意退出码来自虚拟机内的命令，
   ///   非零不代表 tart 本身失败，所以这里不抛错，由调用方判断。
+  public func execAction(name: String, command: [String]) -> CommandAction {
+    CommandAction(arguments: ["exec", name] + command)
+  }
+
   public func exec(name: String, command: [String]) async throws -> CommandResult {
     guard !command.isEmpty else {
       throw TartError.commandFailed(
@@ -90,7 +114,7 @@ extension TartClient {
     }
 
     // 不加 -i 和 -t：交互式需要接管标准输入和 PTY，那是另一套机制。
-    return try await executor.run(["exec", name] + command, stdin: nil)
+    return try await executor.run(execAction(name: name, command: command).arguments, stdin: nil)
   }
 }
 

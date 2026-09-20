@@ -20,11 +20,11 @@ extension TartClient {
   /// 从 OCI 仓库拉取镜像。
   ///
   /// 返回流：镜像动辄几十 GB。
-  public func pull(
+  public func pullAction(
     remoteName: String,
     insecure: Bool = false,
     concurrency: UInt? = nil
-  ) -> AsyncThrowingStream<CommandEvent, any Error> {
+  ) -> CommandAction {
     var arguments = ["pull", remoteName]
 
     if insecure {
@@ -34,16 +34,18 @@ extension TartClient {
       arguments += ["--concurrency", String(concurrency)]
     }
 
-    return stream(arguments)
+    return CommandAction(arguments: arguments)
   }
 
-  /// 把本地虚拟机推送到一个或多个远程引用。
-  ///
-  /// - Parameters:
-  ///   - chunkSizeMB: 分块上传的块大小。各家仓库要求不同——ECR 只接受大于 5MB 的块，
-  ///     GHCR 只接受小于 4MB 的，GCR 完全不支持分块。传 nil 用整体上传。
-  ///   - populateCache: 顺带在本地缓存推送的镜像，占磁盘但省去之后重新拉取。
-  public func push(
+  public func pull(
+    remoteName: String,
+    insecure: Bool = false,
+    concurrency: UInt? = nil
+  ) -> AsyncThrowingStream<CommandEvent, any Error> {
+    stream(pullAction(remoteName: remoteName, insecure: insecure, concurrency: concurrency))
+  }
+
+  public func pushAction(
     localName: String,
     remoteNames: [String],
     insecure: Bool = false,
@@ -51,7 +53,7 @@ extension TartClient {
     chunkSizeMB: Int? = nil,
     labels: [ImageLabel] = [],
     populateCache: Bool = false
-  ) -> AsyncThrowingStream<CommandEvent, any Error> {
+  ) -> CommandAction {
     var arguments = ["push", localName] + remoteNames
 
     if insecure {
@@ -70,7 +72,27 @@ extension TartClient {
       arguments.append("--populate-cache")
     }
 
-    return stream(arguments)
+    return CommandAction(arguments: arguments)
+  }
+
+  public func push(
+    localName: String,
+    remoteNames: [String],
+    insecure: Bool = false,
+    concurrency: UInt? = nil,
+    chunkSizeMB: Int? = nil,
+    labels: [ImageLabel] = [],
+    populateCache: Bool = false
+  ) -> AsyncThrowingStream<CommandEvent, any Error> {
+    stream(pushAction(
+      localName: localName,
+      remoteNames: remoteNames,
+      insecure: insecure,
+      concurrency: concurrency,
+      chunkSizeMB: chunkSizeMB,
+      labels: labels,
+      populateCache: populateCache
+    ))
   }
 
   // MARK: - 登录
@@ -84,13 +106,12 @@ extension TartClient {
   ///
   /// - Parameter validate: 为 true 时 tart 会先验证凭据再保存。
   ///   关掉它可以在仓库暂时不可达时也先存下凭据。
-  public func login(
+  public func loginAction(
     host: String,
     username: String,
-    password: String,
     insecure: Bool = false,
     validate: Bool = true
-  ) async throws {
+  ) -> CommandAction {
     var arguments = ["login", host, "--username", username, "--password-stdin"]
 
     if insecure {
@@ -100,20 +121,39 @@ extension TartClient {
       arguments.append("--no-validate")
     }
 
-    let result = try await executor.run(arguments, stdin: Data(password.utf8))
+    return CommandAction(arguments: arguments)
+  }
+
+  @discardableResult
+  public func login(
+    host: String,
+    username: String,
+    password: String,
+    insecure: Bool = false,
+    validate: Bool = true
+  ) async throws -> CommandResult {
+    let action = loginAction(host: host, username: username, insecure: insecure, validate: validate)
+    let result = try await executor.run(action.arguments, stdin: Data(password.utf8))
 
     guard result.succeeded else {
       throw TartError.commandFailed(
-        command: sanitized(arguments),
+        command: sanitized(action.arguments),
         exitCode: result.exitCode,
         stderr: result.stderr
       )
     }
+
+    return result
+  }
+
+  public func logoutAction(host: String) -> CommandAction {
+    CommandAction(arguments: ["logout", host])
   }
 
   /// 注销指定仓库的凭据。
-  public func logout(host: String) async throws {
-    try await runChecked(["logout", host])
+  @discardableResult
+  public func logout(host: String) async throws -> CommandResult {
+    try await runChecked(logoutAction(host: host))
   }
 
   /// 去掉参数里可能敏感的部分，用于错误信息和日志。

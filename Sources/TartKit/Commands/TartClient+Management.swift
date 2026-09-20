@@ -40,12 +40,12 @@ extension TartClient {
   ///
   /// 返回流而非直接等待：从 IPSW 安装 macOS 要下载十几 GB 并完成安装，
   /// 耗时可达数十分钟，必须能显示进度。
-  public func create(
+  public func createAction(
     name: String,
     source: VMCreationSource,
     diskSizeGB: UInt? = nil,
     diskFormat: DiskFormat? = nil
-  ) -> AsyncThrowingStream<CommandEvent, any Error> {
+  ) -> CommandAction {
     var arguments = ["create", name]
 
     switch source {
@@ -62,19 +62,28 @@ extension TartClient {
       arguments += ["--disk-format", diskFormat.rawValue]
     }
 
-    return stream(arguments)
+    return CommandAction(arguments: arguments)
+  }
+
+  public func create(
+    name: String,
+    source: VMCreationSource,
+    diskSizeGB: UInt? = nil,
+    diskFormat: DiskFormat? = nil
+  ) -> AsyncThrowingStream<CommandEvent, any Error> {
+    stream(createAction(name: name, source: source, diskSizeGB: diskSizeGB, diskFormat: diskFormat))
   }
 
   /// 克隆虚拟机。来源可以是本地虚拟机，也可以是 OCI 镜像引用。
   ///
   /// 同样返回流：从远程仓库克隆需要拉取几十 GB。
-  public func clone(
+  public func cloneAction(
     source: String,
     newName: String,
     insecure: Bool = false,
     concurrency: UInt? = nil,
     pruneLimitGB: UInt? = nil
-  ) -> AsyncThrowingStream<CommandEvent, any Error> {
+  ) -> CommandAction {
     var arguments = ["clone", source, newName]
 
     if insecure {
@@ -87,7 +96,23 @@ extension TartClient {
       arguments += ["--prune-limit", String(pruneLimitGB)]
     }
 
-    return stream(arguments)
+    return CommandAction(arguments: arguments)
+  }
+
+  public func clone(
+    source: String,
+    newName: String,
+    insecure: Bool = false,
+    concurrency: UInt? = nil,
+    pruneLimitGB: UInt? = nil
+  ) -> AsyncThrowingStream<CommandEvent, any Error> {
+    stream(cloneAction(
+      source: source,
+      newName: newName,
+      insecure: insecure,
+      concurrency: concurrency,
+      pruneLimitGB: pruneLimitGB
+    ))
   }
 
   // MARK: - 配置修改
@@ -96,7 +121,7 @@ extension TartClient {
   ///
   /// - Important: `diskSizeGB` 只能调大。tart 拒绝缩小磁盘以免丢数据，
   ///   调用方应当在界面上就拦住这种操作，而不是等 tart 报错。
-  public func set(
+  public func setAction(
     name: String,
     cpuCount: Int? = nil,
     memoryMB: Int? = nil,
@@ -106,7 +131,7 @@ extension TartClient {
     randomMAC: Bool = false,
     randomSerial: Bool = false,
     diskSizeGB: Int? = nil
-  ) async throws {
+  ) -> CommandAction {
     var arguments = ["set", name]
 
     if let cpuCount {
@@ -116,7 +141,6 @@ extension TartClient {
       arguments += ["--memory", String(memoryMB)]
     }
     if let display {
-      // 单位是提示性的，不给就由 tart 按客户机类型决定。
       let value = displayUnit.map { "\(display.description)\($0.rawValue)" } ?? display.description
       arguments += ["--display", value]
     }
@@ -133,27 +157,62 @@ extension TartClient {
       arguments += ["--disk-size", String(diskSizeGB)]
     }
 
-    // 一项都没改就没必要跑一趟。
-    guard arguments.count > 2 else { return }
-
-    try await runChecked(arguments)
+    return CommandAction(arguments: arguments)
   }
 
-  /// 重命名虚拟机。
-  ///
-  /// - Note: 调用方还需要同步搬迁该虚拟机的 Run Profile，
-  ///   否则用户配好的启动参数会失联。见 `ProfileCollection.rename`。
-  public func rename(name: String, to newName: String) async throws {
-    try await runChecked(["rename", name, newName])
+  @discardableResult
+  public func set(
+    name: String,
+    cpuCount: Int? = nil,
+    memoryMB: Int? = nil,
+    display: DisplayResolution? = nil,
+    displayUnit: DisplayUnit? = nil,
+    displayRefit: Bool? = nil,
+    randomMAC: Bool = false,
+    randomSerial: Bool = false,
+    diskSizeGB: Int? = nil
+  ) async throws -> CommandResult {
+    let action = setAction(
+      name: name,
+      cpuCount: cpuCount,
+      memoryMB: memoryMB,
+      display: display,
+      displayUnit: displayUnit,
+      displayRefit: displayRefit,
+      randomMAC: randomMAC,
+      randomSerial: randomSerial,
+      diskSizeGB: diskSizeGB
+    )
+
+    guard action.arguments.count > 2 else {
+      return CommandResult(arguments: action.arguments, stdout: "", stderr: "", exitCode: 0)
+    }
+
+    return try await runChecked(action)
   }
 
-  /// 删除虚拟机。不可撤销。
-  ///
-  /// tart 的 delete 接受多个名字，这里保持一致。
-  public func delete(names: [String]) async throws {
-    guard !names.isEmpty else { return }
-    try await runChecked(["delete"] + names)
+  public func renameAction(name: String, to newName: String) -> CommandAction {
+    CommandAction(arguments: ["rename", name, newName])
   }
+
+  @discardableResult
+  public func rename(name: String, to newName: String) async throws -> CommandResult {
+    try await runChecked(renameAction(name: name, to: newName))
+  }
+
+  public func deleteAction(names: [String]) -> CommandAction {
+    CommandAction(arguments: ["delete"] + names)
+  }
+
+  @discardableResult
+  public func delete(names: [String]) async throws -> CommandResult {
+    let action = deleteAction(names: names)
+    guard !names.isEmpty else {
+      return CommandResult(arguments: action.arguments, stdout: "", stderr: "", exitCode: 0)
+    }
+    return try await runChecked(action)
+  }
+
 }
 
 // MARK: - 磁盘调整校验
