@@ -75,7 +75,7 @@ struct CloneImageSheet: View {
       }
       .formStyle(.grouped)
 
-      RunCommandPreview(command: renderTartCommand(cloneArguments))
+      CommandPreview(action: CommandAction(arguments: cloneArguments))
         .padding(.horizontal)
         .padding(.bottom, 12)
 
@@ -208,7 +208,7 @@ struct PullImageSheet: View {
       }
       .formStyle(.grouped)
 
-      RunCommandPreview(command: renderTartCommand(pullArguments))
+      CommandPreview(action: CommandAction(arguments: pullArguments))
         .padding(.horizontal)
         .padding(.bottom, 12)
 
@@ -357,6 +357,10 @@ struct PushImageSheet: View {
       }
       .formStyle(.grouped)
 
+      CommandPreview(action: CommandAction(arguments: pushArguments))
+        .padding(.horizontal)
+        .padding(.bottom, 12)
+
       Divider()
 
       HStack {
@@ -388,6 +392,20 @@ struct PushImageSheet: View {
 
   private var validTargets: [String] {
     targets.map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+  }
+
+  private var pushArguments: [String] {
+    var arguments = ["push", localName] + validTargets
+    if insecure { arguments.append("--insecure") }
+    arguments += ["--concurrency", String(Int(concurrency))]
+    if useChunkedUpload {
+      arguments += ["--chunk-size", String(Int(chunkSizeMB))]
+    }
+    for label in labels where !label.key.isEmpty {
+      arguments += ["--label", "\(label.key)=\(label.value)"]
+    }
+    if populateCache { arguments.append("--populate-cache") }
+    return arguments
   }
 }
 
@@ -471,6 +489,10 @@ struct RegistryLoginSheet: View {
       }
       .formStyle(.grouped)
 
+      CommandPreview(action: registryAction)
+        .padding(.horizontal)
+        .padding(.bottom, 12)
+
       Divider()
 
       HStack {
@@ -493,6 +515,18 @@ struct RegistryLoginSheet: View {
       .padding()
     }
     .frame(width: 520, height: 480)
+  }
+
+  private var registryAction: CommandAction {
+    switch mode {
+    case .logout:
+      return CommandAction(arguments: ["logout", host])
+    case .login:
+      var arguments = ["login", host, "--username", username, "--password-stdin"]
+      if insecure { arguments.append("--insecure") }
+      if !validate { arguments.append("--no-validate") }
+      return CommandAction(arguments: arguments)
+    }
   }
 
   private var canSubmit: Bool {

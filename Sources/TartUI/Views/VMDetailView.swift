@@ -148,14 +148,14 @@ struct VMDetailView: View {
           }
           .buttonStyle(.borderedProminent)
           .disabled(isStopping)
-          .help(renderTartCommand(["stop", entry.name]))
+          .help(CommandAction(arguments: ["stop", entry.name]).command)
 
           Button {
             Task { await store.suspend(vmName: entry.name) }
           } label: {
             Label(L10n.text("Suspend"), systemImage: "pause.circle")
           }
-          .help(renderTartCommand(["suspend", entry.name]))
+          .help(CommandAction(arguments: ["suspend", entry.name]).command)
         } else {
           Button {
             store.start(vmName: entry.name, profile: currentProfile)
@@ -184,7 +184,7 @@ struct VMDetailView: View {
           Label(L10n.text("Delete"), systemImage: "trash")
         }
         .disabled(entry.isRunning)
-        .help(renderTartCommand(["delete", entry.name]))
+        .help(CommandAction(arguments: ["delete", entry.name]).command)
       }
     } else {
       HStack(spacing: 10) {
@@ -202,7 +202,7 @@ struct VMDetailView: View {
         } label: {
           Label(L10n.text("Delete Cache"), systemImage: "trash")
         }
-        .help(renderTartCommand(["delete", entry.name]))
+        .help(CommandAction(arguments: ["delete", entry.name]).command)
       }
     }
   }
@@ -212,10 +212,10 @@ struct VMDetailView: View {
       Label(L10n.text("CLI"), systemImage: "terminal")
         .font(.caption.weight(.medium))
 
-      Text(renderTartCommand(["stop", entry.name]))
+      Text(CommandAction(arguments: ["stop", entry.name]).command)
       Text("•")
         .foregroundStyle(.tertiary)
-      Text(renderTartCommand(["suspend", entry.name]))
+      Text(CommandAction(arguments: ["suspend", entry.name]).command)
     }
     .font(.system(.caption, design: .monospaced))
     .foregroundStyle(.secondary)
@@ -373,7 +373,7 @@ struct VMDetailView: View {
           }
         }
 
-        RunCommandPreview(command: currentProfile.command(vmName: entry.name))
+        CommandPreview(action: CommandAction(arguments: currentProfile.arguments(vmName: entry.name)))
       }
       .padding(.vertical, 4)
     }

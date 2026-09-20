@@ -99,7 +99,7 @@ struct CreateVMSheet: View {
       }
       .formStyle(.grouped)
 
-      RunCommandPreview(command: renderTartCommand(createArguments))
+      CommandPreview(action: CommandAction(arguments: createArguments))
         .padding(.horizontal)
         .padding(.bottom, 12)
 
@@ -246,7 +246,7 @@ struct CloneVMSheet: View {
       }
       .formStyle(.grouped)
 
-      RunCommandPreview(command: renderTartCommand(cloneArguments))
+      CommandPreview(action: CommandAction(arguments: cloneArguments))
         .padding(.horizontal)
         .padding(.bottom, 12)
 
