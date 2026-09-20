@@ -38,7 +38,7 @@ struct RunProfileArgumentTests {
 
     #expect(
       profile.command(vmName: "dev vm")
-        == "tart run 'dev vm' --no-graphics --no-clipboard --suspendable '--dir=work:/Users/me/My Project:ro' '--net-bridged=Wi-Fi'"
+        == "tart run 'dev vm' --no-graphics --no-clipboard --suspendable '--dir=work:/Users/me/My Project:ro' --net-bridged=Wi-Fi"
     )
   }
 
