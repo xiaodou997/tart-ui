@@ -12,7 +12,7 @@ permissions:
 jobs:
   tests:
     name: TartUI tests
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 30
 
     steps:
@@ -27,7 +27,7 @@ jobs:
 
   package:
     name: Build app bundle
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 30
 
     steps:
@@ -39,16 +39,18 @@ jobs:
 
       - name: Verify app bundle
         run: |
-          bin_path="$(swift build -c debug --product TartUI --show-bin-path)"
+          bin_path="$(swift build -c debug --product TartUI --arch arm64 --show-bin-path)"
           app="$bin_path/TartUI.app"
           codesign --verify --deep --strict "$app"
+          test "$(lipo -archs "$app/Contents/MacOS/TartUI")" = "arm64"
+          test "$(plutil -extract LSMinimumSystemVersion raw "$app/Contents/Info.plist")" = "26.0"
           test -f "$app/Contents/Resources/Legal/TartUI-LICENSE.txt"
           test -f "$app/Contents/Resources/TartUI_TartUI.bundle/en.lproj/Localizable.strings"
           test -f "$app/Contents/Resources/TartUI_TartUI.bundle/zh-hans.lproj/Localizable.strings"
 
       - name: Package test build
         run: |
-          bin_path="$(swift build -c debug --product TartUI --show-bin-path)"
+          bin_path="$(swift build -c debug --product TartUI --arch arm64 --show-bin-path)"
           app="$bin_path/TartUI.app"
           ditto -c -k --keepParent "$app" "TartUI-test.zip"
 

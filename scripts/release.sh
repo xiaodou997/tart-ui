@@ -48,7 +48,7 @@ TARTUI_VERSION="$VERSION" \
 TARTUI_BUILD_NUMBER="$BUILD_NUMBER" \
   "$ROOT/scripts/bundle.sh" release
 
-BIN_PATH="$(swift build -c release --product TartUI --show-bin-path)"
+BIN_PATH="$(swift build -c release --product TartUI --arch arm64 --show-bin-path)"
 APP="$BIN_PATH/TartUI.app"
 
 if [ ! -d "$APP" ]; then

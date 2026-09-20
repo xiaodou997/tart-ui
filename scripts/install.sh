@@ -27,7 +27,7 @@ DEST="$DEST_DIR/$APP_NAME.app"
 echo "==> 构建 release 版本"
 "$ROOT/scripts/bundle.sh" release
 
-BIN_PATH="$(swift build -c release --product "$APP_NAME" --show-bin-path)"
+BIN_PATH="$(swift build -c release --product "$APP_NAME" --arch arm64 --show-bin-path)"
 BUILT_APP="$BIN_PATH/$APP_NAME.app"
 
 if [ ! -d "$BUILT_APP" ]; then

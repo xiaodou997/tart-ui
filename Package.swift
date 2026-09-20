@@ -6,7 +6,7 @@ let package = Package(
   name: "TartUI",
   defaultLocalization: "en",
   platforms: [
-    .macOS(.v14)
+    .macOS(.v26)
   ],
   products: [
     .library(name: "TartKit", targets: ["TartKit"]),

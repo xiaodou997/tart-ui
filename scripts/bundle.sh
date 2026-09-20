@@ -21,10 +21,10 @@ export SWIFT_MODULECACHE_PATH="${SWIFT_MODULECACHE_PATH:-$ROOT/.build/swift-modu
 source "$ROOT/scripts/lib.sh"
 export TARTUI_SIGNING_CONFIGURATION="$CONFIG"
 
-echo "==> Build ($CONFIG)"
-swift build -c "$CONFIG" --product "$APP_NAME"
+echo "==> Build ($CONFIG, arm64, macOS 26+)"
+swift build -c "$CONFIG" --product "$APP_NAME" --arch arm64
 
-BIN_PATH="$(swift build -c "$CONFIG" --product "$APP_NAME" --show-bin-path)"
+BIN_PATH="$(swift build -c "$CONFIG" --product "$APP_NAME" --arch arm64 --show-bin-path)"
 APP_DIR="$BIN_PATH/$APP_NAME.app"
 
 echo "==> Assemble $APP_DIR"
@@ -97,7 +97,7 @@ cat > "$APP_DIR/Contents/Info.plist" <<PLIST
     <string>zh-Hans</string>
   </array>
   <key>LSMinimumSystemVersion</key>
-  <string>14.0</string>
+  <string>26.0</string>
   <key>NSHighResolutionCapable</key>
   <true/>
 $ICON_ENTRY
@@ -106,6 +106,18 @@ $ICON_ENTRY
 PLIST
 
 plutil -lint "$APP_DIR/Contents/Info.plist" >/dev/null
+
+ARCHS="$(lipo -archs "$APP_DIR/Contents/MacOS/$APP_NAME")"
+if [ "$ARCHS" != "arm64" ]; then
+  echo "Error: TartUI must be arm64-only, got: $ARCHS" >&2
+  exit 1
+fi
+
+MIN_SYSTEM="$(plutil -extract LSMinimumSystemVersion raw "$APP_DIR/Contents/Info.plist")"
+if [ "$MIN_SYSTEM" != "26.0" ]; then
+  echo "Error: expected macOS 26.0 minimum, got: $MIN_SYSTEM" >&2
+  exit 1
+fi
 
 detect_signing_identity
 echo "==> Sign ($SIGN_DESCRIPTION)"
