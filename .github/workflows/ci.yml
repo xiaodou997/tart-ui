@@ -19,6 +19,9 @@ jobs:
       - name: Check out TartUI
         uses: actions/checkout@v4
 
+      - name: Check packaging scripts
+        run: bash -n scripts/bundle.sh scripts/install.sh scripts/lib.sh scripts/release.sh
+
       - name: Run tests
         run: swift test
 
