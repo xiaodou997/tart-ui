@@ -322,3 +322,15 @@
 "Automatic detection checks standard Homebrew locations and PATH first, then falls back to a TartUI-managed runtime. A manual path is saved only after it passes validation." = "Automatic detection checks standard Homebrew locations and PATH first, then falls back to a TartUI-managed runtime. A manual path is saved only after it passes validation.";
 "Using tart %@." = "Using tart %@.";
 "Managed Tart" = "Managed Tart";
+
+/* Simplified Run Profile */
+"Launch" = "Launch";
+"Window" = "Window";
+"Headless" = "Headless";
+"Screen Sharing" = "Screen Sharing";
+"Allow Suspend" = "Allow Suspend";
+"Directory Sharing" = "Directory Sharing";
+"Softnet uses Tart defaults. Existing allow, block, and port-forward rules are preserved in the command preview." = "Softnet uses Tart defaults. Existing allow, block, and port-forward rules are preserved in the command preview.";
+"Legacy Advanced Options" = "Legacy Advanced Options";
+"This profile contains advanced options from an earlier TartUI version. They are preserved and remain visible in the command preview." = "This profile contains advanced options from an earlier TartUI version. They are preserved and remain visible in the command preview.";
+"Remove Legacy Advanced Options" = "Remove Legacy Advanced Options";
