@@ -28,13 +28,13 @@ struct VMDetailView: View {
       VStack(alignment: .leading, spacing: 20) {
         header
         actionBar
+        profileSection
 
         if entry.isRunning {
           networkSection
         }
 
         specSection
-        profileSection
       }
       .padding(20)
       .frame(maxWidth: .infinity, alignment: .leading)
@@ -288,7 +288,7 @@ struct VMDetailView: View {
   }
 
   private var profileSection: some View {
-    GroupBox(L10n.text("Run Profile")) {
+    GroupBox(L10n.text("Launch")) {
       VStack(alignment: .leading, spacing: 10) {
         let available = store.profiles.profiles(for: entry.name)
 
@@ -330,11 +330,7 @@ struct VMDetailView: View {
           }
         }
 
-        Text("tart " + currentProfile.arguments(vmName: entry.name).joined(separator: " "))
-          .font(.system(.caption, design: .monospaced))
-          .foregroundStyle(.secondary)
-          .textSelection(.enabled)
-          .frame(maxWidth: .infinity, alignment: .leading)
+        RunCommandPreview(command: currentProfile.command(vmName: entry.name))
       }
       .padding(.vertical, 4)
     }
