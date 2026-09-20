@@ -167,28 +167,9 @@ struct SettingsView: View {
           .foregroundStyle(.secondary)
       }
 
-      Section(L10n.text("Storage Locations")) {
-        LabeledContent(L10n.text("Run Profiles")) {
-          Button(L10n.text("Show in Finder")) {
-            if let url = try? RunProfileStore.defaultFileURL() {
-              NSWorkspace.shared.activateFileViewerSelecting([url])
-            }
-          }
-          .buttonStyle(.link)
-        }
-
-        LabeledContent(L10n.text("Managed Tart")) {
-          Button(L10n.text("Show in Finder")) {
-            let url = TartLocator.defaultApplicationSupportURL()
-              .appendingPathComponent(TartLocator.managedRuntimeDirectoryName, isDirectory: true)
-            NSWorkspace.shared.open(url)
-          }
-          .buttonStyle(.link)
-        }
-      }
     }
     .formStyle(.grouped)
-    .frame(width: 620, height: 570)
+    .frame(width: 620, height: 500)
     .onAppear {
       binaryPath = TartLocator.storedUserOverride() ?? ""
     }

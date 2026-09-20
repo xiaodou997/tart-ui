@@ -375,3 +375,19 @@
 "No stderr output." = "No stderr output.";
 "Duration: %@" = "Duration: %@";
 "Command failed." = "Command failed.";
+
+/* Release experience */
+"About TartUI" = "About TartUI";
+"A transparent macOS GUI for the Tart CLI." = "A transparent macOS GUI for the Tart CLI.";
+"TartUI Version" = "TartUI Version";
+"Build" = "Build";
+"Tart Version" = "Tart Version";
+"TartUI Updates" = "TartUI Updates";
+"Checking for TartUI updates…" = "Checking for TartUI updates…";
+"No published TartUI release yet." = "No published TartUI release yet.";
+"TartUI %@ is available." = "TartUI %@ is available.";
+"View Release" = "View Release";
+"TartUI is up to date." = "TartUI is up to date.";
+"Project on GitHub" = "Project on GitHub";
+"Tart Project" = "Tart Project";
+"Development" = "Development";

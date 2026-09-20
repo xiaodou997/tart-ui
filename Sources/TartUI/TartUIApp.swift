@@ -5,6 +5,7 @@ import TartKit
 struct TartUIApp: App {
   @State private var store = VMStore()
   @State private var languageStore = AppLanguageStore()
+  @State private var updateStore = AppUpdateStore()
   @State private var hasBootstrapped = false
   @State private var selection: VMListEntry.ID?
   @State private var creationKind: CreateVMKind?
@@ -99,8 +100,12 @@ struct TartUIApp: App {
       .task {
         guard !hasBootstrapped else { return }
         hasBootstrapped = true
+
+        async let updateCheck: Void = updateStore.check()
+
         let override = TartLocator.storedUserOverride()
         await store.bootstrap(userOverride: override?.isEmpty == false ? override : nil)
+        await updateCheck
       }
       .alert(
         L10n.text("Operation Failed"),
@@ -116,13 +121,17 @@ struct TartUIApp: App {
     }
     .defaultSize(width: 960, height: 600)
     .commands {
-      CommandGroup(after: .newItem) {
-        Button(L10n.text("Refresh")) {
-          Task { await store.refresh() }
-        }
-        .keyboardShortcut("r")
+      TartUICommands {
+        Task { await store.refresh() }
       }
     }
+
+    Window("About TartUI", id: "about") {
+      AboutView(store: store, updateStore: updateStore)
+        .id(languageStore.selection)
+        .environment(\.locale, languageStore.locale)
+    }
+    .windowResizability(.contentSize)
 
     Settings {
       SettingsView(store: store, languageStore: languageStore)

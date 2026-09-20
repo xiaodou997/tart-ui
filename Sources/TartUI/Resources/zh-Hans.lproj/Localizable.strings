@@ -374,3 +374,19 @@
 "No stderr output." = "没有 stderr 输出。";
 "Duration: %@" = "耗时：%@";
 "Command failed." = "命令执行失败。";
+
+/* Release experience */
+"About TartUI" = "关于 TartUI";
+"A transparent macOS GUI for the Tart CLI." = "一个保持 Tart CLI 透明可见的 macOS 图形界面。";
+"TartUI Version" = "TartUI 版本";
+"Build" = "构建版本";
+"Tart Version" = "Tart 版本";
+"TartUI Updates" = "TartUI 更新";
+"Checking for TartUI updates…" = "正在检查 TartUI 更新…";
+"No published TartUI release yet." = "目前还没有已发布的 TartUI 正式版。";
+"TartUI %@ is available." = "发现 TartUI %@。";
+"View Release" = "查看发布页";
+"TartUI is up to date." = "TartUI 已是最新版。";
+"Project on GitHub" = "GitHub 项目";
+"Tart Project" = "Tart 项目";
+"Development" = "开发版本";
