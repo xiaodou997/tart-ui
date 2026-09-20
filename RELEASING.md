@@ -77,6 +77,9 @@ Verify the generated checksums:
 
 Before announcing a release, verify:
 
+- the app refuses to run on macOS versions earlier than 26;
+- `lipo -archs TartUI.app/Contents/MacOS/TartUI` reports only `arm64`;
+
 - TartUI launches without a Gatekeeper warning on a clean test Mac;
 - About shows the expected TartUI version and build number;
 - Tart detection/managed installation still works;

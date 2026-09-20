@@ -2,7 +2,7 @@
 
 [English](README.md)
 
-TartUI 是官方 [Tart](https://github.com/openai/tart) CLI 的原生 macOS 图形界面。
+TartUI 是仅面向 Apple Silicon 的原生 macOS 应用，也是官方 [Tart](https://github.com/openai/tart) CLI 的原生 macOS 图形界面。
 
 项目定位刻意保持简单：**让常用 Tart 命令更容易配置和执行，但不隐藏 CLI**。虚拟机、运行状态和 OCI 数据仍然以 Tart 为唯一事实来源。
 
@@ -68,8 +68,8 @@ TartUI 不是另一套虚拟化平台，也不是 Tart 的替代实现。
 
 ## 环境要求
 
-- macOS 14 或更高；
-- 运行 Tart 虚拟机需要 Apple Silicon；
+- **macOS 26 Tahoe 或更高**；
+- **仅支持 Apple Silicon（M1 及更新芯片）**；
 - 下载 Tart 正式版或远程 OCI 镜像时需要网络连接。
 
 ## Tart 运行时
@@ -143,3 +143,8 @@ TartUI 不会移动或改写 Tart 自己的虚拟机存储。
 TartUI 是面向 Tart 的独立社区图形界面项目，不是 OpenAI 官方产品。
 
 Tart 使用其自身的开源协议，详情见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
+
+## 平台基线
+
+TartUI 现在明确以 macOS 26 + Apple Silicon 为唯一支持基线。应用包只构建 arm64 架构，并声明 macOS 26.0 为最低系统版本，因此可以直接使用当前 SwiftUI 设计系统，不再为旧版 macOS 保留兼容分支。

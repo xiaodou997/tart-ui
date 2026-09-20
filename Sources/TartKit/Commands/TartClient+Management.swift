@@ -3,13 +3,13 @@ import Foundation
 /// 磁盘镜像格式。
 public enum DiskFormat: String, Sendable, CaseIterable, Codable {
   case raw
-  /// 性能更好，但要求宿主机是 macOS 26 (Tahoe) 或更高。
+  /// Apple Silicon + macOS 26 baseline allows TartUI to expose ASIF directly.
   case asif
 
   public var displayName: String {
     switch self {
     case .raw: "RAW (Universal)"
-    case .asif: "ASIF (Faster, macOS 26+)"
+    case .asif: "ASIF (Faster)"
     }
   }
 }

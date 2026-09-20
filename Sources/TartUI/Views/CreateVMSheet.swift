@@ -87,14 +87,6 @@ struct CreateVMSheet: View {
             }
           }
 
-          if diskFormat == .asif && !isTahoeOrLater {
-            Label(
-              L10n.text("This macOS version does not support ASIF; creation will fail."),
-              systemImage: "exclamationmark.octagon.fill"
-            )
-            .font(.caption)
-            .foregroundStyle(.red)
-          }
         }
       }
       .formStyle(.grouped)
@@ -158,15 +150,8 @@ struct CreateVMSheet: View {
 
   private var canCreate: Bool {
     guard !name.isEmpty, nameIssue == nil else { return false }
-    if diskFormat == .asif && !isTahoeOrLater { return false }
     if kind == .macOS && ipswSource == .custom && ipswPath.isEmpty { return false }
     return true
-  }
-
-  private var isTahoeOrLater: Bool {
-    ProcessInfo.processInfo.isOperatingSystemAtLeast(
-      OperatingSystemVersion(majorVersion: 26, minorVersion: 0, patchVersion: 0)
-    )
   }
 
   private func chooseIPSW() {

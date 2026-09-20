@@ -2,7 +2,7 @@
 
 [简体中文](README.zh-CN.md)
 
-TartUI is a native macOS GUI for the official [Tart](https://github.com/openai/tart) CLI.
+TartUI is a native Apple Silicon macOS GUI for the official [Tart](https://github.com/openai/tart) CLI.
 
 The design goal is deliberately narrow: **make common Tart commands easier to configure and run without hiding the CLI**. Tart remains the source of truth for virtual machines, runtime state and OCI data.
 
@@ -68,8 +68,8 @@ The VM display window and virtualization lifecycle are owned by Tart itself.
 
 ## Requirements
 
-- macOS 14 or newer;
-- Apple Silicon for running Tart virtual machines;
+- **macOS 26 Tahoe or newer**;
+- **Apple Silicon only (M1 or newer)**;
 - network access when downloading Tart releases or remote OCI images.
 
 ## Tart runtime
@@ -143,3 +143,8 @@ TartUI does not move or rewrite Tart's own VM storage.
 TartUI is an independent community GUI for Tart. It is not an official OpenAI product.
 
 Tart is distributed under its own license. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+
+## Platform baseline
+
+TartUI intentionally targets macOS 26 and Apple Silicon only. The app bundle is built as arm64-only and declares macOS 26.0 as its minimum system version. This lets the UI use the current SwiftUI design system directly instead of carrying compatibility branches for older macOS releases.

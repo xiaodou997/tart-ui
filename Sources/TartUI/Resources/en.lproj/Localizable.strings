@@ -202,8 +202,6 @@
 "This creates a blank Linux VM. Attach installation media before starting it." = "This creates a blank Linux VM. Attach installation media before starting it.";
 "Format" = "Format";
 "RAW (Universal)" = "RAW (Universal)";
-"ASIF (Faster, macOS 26+)" = "ASIF (Faster, macOS 26+)";
-"This macOS version does not support ASIF; creation will fail." = "This macOS version does not support ASIF; creation will fail.";
 "Create" = "Create";
 "A VM with this name already exists." = "A VM with this name already exists.";
 "Names cannot contain slash or colon." = "Names cannot contain slash or colon.";
@@ -346,3 +344,5 @@
 "Project on GitHub" = "Project on GitHub";
 "Tart Project" = "Tart Project";
 "Development" = "Development";
+
+"ASIF (Faster)" = "ASIF (Faster)";

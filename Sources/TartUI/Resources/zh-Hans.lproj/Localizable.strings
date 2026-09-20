@@ -201,8 +201,6 @@
 "This creates a blank Linux VM. Attach installation media before starting it." = "将创建空白的 Linux 虚拟机，需要自行挂载安装介质后再启动。";
 "Format" = "格式";
 "RAW (Universal)" = "RAW（通用）";
-"ASIF (Faster, macOS 26+)" = "ASIF（更快，需 macOS 26+）";
-"This macOS version does not support ASIF; creation will fail." = "当前系统版本不支持 ASIF 格式，创建会失败。";
 "Create" = "创建";
 "A VM with this name already exists." = "已经有同名的虚拟机了。";
 "Names cannot contain slash or colon." = "名称不能包含斜杠或冒号。";
@@ -345,3 +343,5 @@
 "Project on GitHub" = "GitHub 项目";
 "Tart Project" = "Tart 项目";
 "Development" = "开发版本";
+
+"ASIF (Faster)" = "ASIF（更快）";
