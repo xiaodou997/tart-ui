@@ -112,6 +112,10 @@ struct EditConfigSheet: View {
       }
       .formStyle(.grouped)
 
+      CommandPreview(action: commandAction)
+        .padding(.horizontal)
+        .padding(.bottom, 12)
+
       Divider()
 
       HStack {
@@ -132,7 +136,7 @@ struct EditConfigSheet: View {
       }
       .padding()
     }
-    .frame(width: 520, height: 580)
+    .frame(width: 540, height: 650)
   }
 
   // MARK: - 变更计算
@@ -147,6 +151,17 @@ struct EditConfigSheet: View {
       randomMAC: randomMAC,
       randomSerial: randomSerial
     )
+  }
+
+  private var commandAction: CommandAction {
+    var arguments = ["set", vmName]
+    if let cpu = changes.cpuCount { arguments += ["--cpu", String(cpu)] }
+    if let memory = changes.memoryMB { arguments += ["--memory", String(memory)] }
+    if let display = changes.display { arguments += ["--display", display.description] }
+    if changes.randomMAC { arguments.append("--random-mac") }
+    if changes.randomSerial { arguments.append("--random-serial") }
+    if let disk = changes.diskSizeGB { arguments += ["--disk-size", String(disk)] }
+    return CommandAction(arguments: arguments)
   }
 
   private var parsedResolution: DisplayResolution? {

@@ -364,3 +364,13 @@
 "Cache Image" = "缓存镜像";
 "Caching runs tart pull only. It does not create a runnable local VM." = "缓存只执行 tart pull，不会创建可运行的本地虚拟机。";
 "Cache" = "缓存";
+
+/* Unified CLI transparency */
+"Succeeded" = "成功";
+"Failed" = "失败";
+"Cancelled" = "已取消";
+"Details" = "详情";
+"No stdout output." = "没有 stdout 输出。";
+"No stderr output." = "没有 stderr 输出。";
+"Duration: %@" = "耗时：%@";
+"Command failed." = "命令执行失败。";

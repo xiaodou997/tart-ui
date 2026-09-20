@@ -2,12 +2,6 @@ import AppKit
 import SwiftUI
 import TartKit
 
-/// Renders Tart argv as a copy-pasteable shell command for lightweight UI previews.
-/// Phase 6 can promote this into the shared command-action model.
-func renderTartCommand(_ arguments: [String], executable: String = "tart") -> String {
-  CommandAction(arguments: arguments, executable: executable).command
-}
-
 /// A focused editor for the launch options people change most often.
 ///
 /// Less common Tart flags remain supported by RunProfile for compatibility, but
@@ -84,7 +78,7 @@ struct RunProfileEditor: View {
         .frame(maxWidth: .infinity, alignment: .leading)
       }
 
-      RunCommandPreview(command: profile.command(vmName: vmName))
+      CommandPreview(action: CommandAction(arguments: profile.arguments(vmName: vmName)))
 
       HStack {
         Spacer()
@@ -358,40 +352,6 @@ struct CommandStateBadge: View {
     case .succeeded: .green
     case .failed: .red
     case .cancelled: .secondary
-    }
-  }
-}
-
-/// Compatibility wrapper while older views migrate to CommandPreview.
-struct RunCommandPreview: View {
-  let command: String
-
-  var body: some View {
-    VStack(alignment: .leading, spacing: 6) {
-      HStack {
-        Label(L10n.text("Command"), systemImage: "terminal")
-          .font(.caption.weight(.medium))
-        Spacer()
-        Button {
-          NSPasteboard.general.clearContents()
-          NSPasteboard.general.setString(command, forType: .string)
-        } label: {
-          Image(systemName: "doc.on.doc")
-        }
-        .buttonStyle(.borderless)
-        .help(L10n.text("Copy"))
-      }
-      ScrollView(.horizontal, showsIndicators: false) {
-        Text(command)
-          .font(.system(.caption, design: .monospaced))
-          .textSelection(.enabled)
-          .fixedSize(horizontal: true, vertical: false)
-      }
-    }
-    .padding(10)
-    .background {
-      RoundedRectangle(cornerRadius: 8)
-        .fill(Color.primary.opacity(0.04))
     }
   }
 }

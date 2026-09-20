@@ -128,6 +128,12 @@ struct PruneSheet: View {
       }
       .formStyle(.grouped)
 
+      if hasCriteria {
+        CommandPreview(action: pruneAction)
+          .padding(.horizontal)
+          .padding(.bottom, 12)
+      }
+
       Divider()
 
       HStack {
@@ -152,7 +158,7 @@ struct PruneSheet: View {
       }
       .padding()
     }
-    .frame(width: 560, height: 620)
+    .frame(width: 580, height: 680)
   }
 
   private var hasCriteria: Bool { useAgeLimit || useSpaceBudget }
@@ -166,6 +172,17 @@ struct PruneSheet: View {
       olderThanDays: useAgeLimit ? UInt(olderThanDays) : nil,
       spaceBudgetGB: useSpaceBudget ? UInt(spaceBudgetGB) : nil
     )
+  }
+
+  private var pruneAction: CommandAction {
+    var arguments = ["prune", "--entries", target.rawValue]
+    if useAgeLimit {
+      arguments += ["--older-than", String(Int(olderThanDays))]
+    }
+    if useSpaceBudget {
+      arguments += ["--space-budget", String(Int(spaceBudgetGB))]
+    }
+    return CommandAction(arguments: arguments)
   }
 
   private var canPrune: Bool {
@@ -218,6 +235,12 @@ struct ExecSheet: View {
           .disabled(commandText.isEmpty || isRunning)
       }
       .padding()
+
+      if !commandText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        CommandPreview(action: execAction)
+          .padding(.horizontal)
+          .padding(.bottom, 10)
+      }
 
       Divider()
 
@@ -272,6 +295,11 @@ struct ExecSheet: View {
       .padding()
     }
     .frame(width: 640, height: 480)
+  }
+
+  private var execAction: CommandAction {
+    let parts = commandText.split(separator: " ").map(String.init)
+    return CommandAction(arguments: ["exec", vmName] + parts)
   }
 
   private func runCommand() {
