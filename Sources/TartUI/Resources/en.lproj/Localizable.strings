@@ -334,3 +334,13 @@
 "Legacy Advanced Options" = "Legacy Advanced Options";
 "This profile contains advanced options from an earlier TartUI version. They are preserved and remain visible in the command preview." = "This profile contains advanced options from an earlier TartUI version. They are preserved and remain visible in the command preview.";
 "Remove Legacy Advanced Options" = "Remove Legacy Advanced Options";
+
+/* Simplified VM Detail */
+"OCI Image Cache" = "OCI Image Cache";
+"Not runnable" = "Not runnable";
+"This is a cached registry image, not a runnable VM." = "This is a cached registry image, not a runnable VM.";
+"Clone it to create a local VM before using Start or launch profiles." = "Clone it to create a local VM before using Start or launch profiles.";
+"Disk Usage" = "Disk Usage";
+"Delete Cache" = "Delete Cache";
+"Delete Cached Image" = "Delete Cached Image";
+"CLI" = "CLI";

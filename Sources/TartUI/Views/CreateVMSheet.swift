@@ -234,6 +234,10 @@ struct CloneVMSheet: View {
       }
       .formStyle(.grouped)
 
+      RunCommandPreview(command: renderTartCommand(cloneArguments))
+        .padding(.horizontal)
+        .padding(.bottom, 12)
+
       Divider()
 
       HStack {
@@ -241,7 +245,7 @@ struct CloneVMSheet: View {
         Button(L10n.text("Cancel")) { dismiss() }
           .keyboardShortcut(.cancelAction)
         Button(L10n.text("Clone")) {
-          onClone(sourceName, newName, insecure, UInt(concurrency))
+          onClone(sourceName, newName, insecure, showAdvanced ? UInt(concurrency) : nil)
           dismiss()
         }
         .keyboardShortcut(.defaultAction)
@@ -250,6 +254,20 @@ struct CloneVMSheet: View {
       .padding()
     }
     .frame(width: 520, height: 420)
+  }
+
+  private var cloneArguments: [String] {
+    var arguments = ["clone", sourceName, newName]
+
+    if insecure {
+      arguments.append("--insecure")
+    }
+
+    if showAdvanced {
+      arguments += ["--concurrency", String(Int(concurrency))]
+    }
+
+    return arguments
   }
 
   private var isRemoteSource: Bool {

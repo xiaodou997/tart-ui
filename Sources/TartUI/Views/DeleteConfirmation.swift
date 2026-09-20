@@ -67,6 +67,10 @@ struct DeleteConfirmation: View {
         }
       }
 
+      RunCommandPreview(
+        command: renderTartCommand(["delete"] + entries.map(\.name))
+      )
+
       HStack {
         Spacer()
         Button(L10n.text("Cancel")) { dismiss() }
@@ -84,7 +88,11 @@ struct DeleteConfirmation: View {
   }
 
   private var title: String {
-    entries.count == 1
+    if entries.count == 1, entries[0].source == .oci {
+      return L10n.text("Delete Cached Image")
+    }
+
+    return entries.count == 1
       ? L10n.text("Delete VM")
       : L10n.format("Delete %@ VMs", String(entries.count))
   }

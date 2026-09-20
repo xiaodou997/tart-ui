@@ -333,3 +333,13 @@
 "Legacy Advanced Options" = "旧版高级选项";
 "This profile contains advanced options from an earlier TartUI version. They are preserved and remain visible in the command preview." = "此配置包含旧版 TartUI 的高级选项。这些参数会继续保留，并显示在下方命令预览中。";
 "Remove Legacy Advanced Options" = "移除旧版高级选项";
+
+/* Simplified VM Detail */
+"OCI Image Cache" = "OCI 镜像缓存";
+"Not runnable" = "不可直接运行";
+"This is a cached registry image, not a runnable VM." = "这是从 Registry 缓存到本地的镜像，不是可直接运行的虚拟机。";
+"Clone it to create a local VM before using Start or launch profiles." = "请先克隆为本地虚拟机，再使用启动和启动配置。";
+"Disk Usage" = "磁盘占用";
+"Delete Cache" = "删除缓存";
+"Delete Cached Image" = "删除缓存镜像";
+"CLI" = "CLI";

@@ -2,6 +2,27 @@ import AppKit
 import SwiftUI
 import TartKit
 
+/// Renders Tart argv as a copy-pasteable shell command for lightweight UI previews.
+/// Phase 6 can promote this into the shared command-action model.
+func renderTartCommand(_ arguments: [String], executable: String = "tart") -> String {
+  ([executable] + arguments)
+    .map(shellQuote)
+    .joined(separator: " ")
+}
+
+private func shellQuote(_ argument: String) -> String {
+  guard !argument.isEmpty else { return "''" }
+
+  let safe = CharacterSet.alphanumerics
+    .union(CharacterSet(charactersIn: "-._/:=,+@%~"))
+
+  if argument.unicodeScalars.allSatisfy({ safe.contains($0) }) {
+    return argument
+  }
+
+  return "'" + argument.replacingOccurrences(of: "'", with: "'\\''") + "'"
+}
+
 /// A focused editor for the launch options people change most often.
 ///
 /// Less common Tart flags remain supported by RunProfile for compatibility, but

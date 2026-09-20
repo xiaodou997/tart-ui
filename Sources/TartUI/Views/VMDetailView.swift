@@ -11,11 +11,8 @@ struct VMDetailView: View {
   @State private var isEditingProfile = false
   @State private var isStopping = false
   @State private var isEditingConfig = false
-  @State private var isRenaming = false
   @State private var isCloning = false
   @State private var isConfirmingDelete = false
-  @State private var isPushing = false
-  @State private var isExecuting = false
   @State private var ipAddress: String?
   @State private var isLookingUpIP = false
 
@@ -28,19 +25,33 @@ struct VMDetailView: View {
       VStack(alignment: .leading, spacing: 20) {
         header
         actionBar
-        profileSection
 
-        if entry.isRunning {
-          networkSection
+        if entry.source == .local {
+          if entry.isRunning {
+            runningCommandHint
+          }
+
+          profileSection
+
+          if entry.isRunning {
+            networkSection
+          }
+
+          specSection
+        } else {
+          cacheSection
         }
-
-        specSection
       }
       .padding(20)
       .frame(maxWidth: .infinity, alignment: .leading)
     }
     .task(id: entry.id) {
-      await loadDetails()
+      if entry.source == .local {
+        await loadDetails()
+      } else {
+        details = nil
+        detailsError = nil
+      }
     }
     .sheet(isPresented: $isEditingProfile) {
       RunProfileEditor(
@@ -74,31 +85,10 @@ struct VMDetailView: View {
         }
       }
     }
-    .sheet(isPresented: $isRenaming) {
-      RenameSheet(currentName: entry.name, existingNames: otherNames) { newName in
-        Task { await store.rename(name: entry.name, to: newName) }
-      }
-    }
     .sheet(isPresented: $isCloning) {
       CloneVMSheet(sourceName: entry.name, existingNames: allNames) { source, newName, insecure, concurrency in
         store.cloneVM(source: source, newName: newName, insecure: insecure, concurrency: concurrency)
       }
-    }
-    .sheet(isPresented: $isPushing) {
-      PushImageSheet(localName: entry.name) { local, targets, insecure, concurrency, chunk, labels, cache in
-        store.push(
-          localName: local,
-          remoteNames: targets,
-          insecure: insecure,
-          concurrency: concurrency,
-          chunkSizeMB: chunk,
-          labels: labels,
-          populateCache: cache
-        )
-      }
-    }
-    .sheet(isPresented: $isExecuting) {
-      ExecSheet(vmName: entry.name, store: store)
     }
     .sheet(isPresented: $isConfirmingDelete) {
       DeleteConfirmation(
@@ -114,10 +104,6 @@ struct VMDetailView: View {
     Set(store.entries.map(\.name))
   }
 
-  private var otherNames: Set<String> {
-    allNames.subtracting([entry.name])
-  }
-
   private var header: some View {
     VStack(alignment: .leading, spacing: 6) {
       Text(entry.name)
@@ -125,14 +111,18 @@ struct VMDetailView: View {
         .textSelection(.enabled)
 
       HStack(spacing: 8) {
-        StatusBadge(state: entry.state)
+        if entry.source == .local {
+          StatusBadge(state: entry.state)
 
-        Text(L10n.text(entry.source == .local ? "Local VM" : "Image Cache"))
-          .font(.caption)
-          .foregroundStyle(.secondary)
+          Text(L10n.text("Local VM"))
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } else {
+          Label(L10n.text("OCI Image Cache"), systemImage: "shippingbox")
+            .font(.caption.weight(.medium))
+            .foregroundStyle(.secondary)
 
-        if entry.source == .oci {
-          Text(L10n.text("Read-only"))
+          Text(L10n.text("Not runnable"))
             .font(.caption)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
@@ -142,66 +132,117 @@ struct VMDetailView: View {
     }
   }
 
+  @ViewBuilder
   private var actionBar: some View {
-    HStack(spacing: 10) {
-      if entry.isRunning {
-        Button {
-          Task {
-            isStopping = true
-            await store.stop(vmName: entry.name)
-            isStopping = false
+    if entry.source == .local {
+      HStack(spacing: 10) {
+        if entry.isRunning {
+          Button {
+            Task {
+              isStopping = true
+              await store.stop(vmName: entry.name)
+              isStopping = false
+            }
+          } label: {
+            Label(isStopping ? L10n.text("Stopping…") : L10n.text("Stop"), systemImage: "stop.circle")
           }
-        } label: {
-          Label(isStopping ? L10n.text("Stopping…") : L10n.text("Stop"), systemImage: "stop.circle")
+          .buttonStyle(.borderedProminent)
+          .disabled(isStopping)
+          .help(renderTartCommand(["stop", entry.name]))
+
+          Button {
+            Task { await store.suspend(vmName: entry.name) }
+          } label: {
+            Label(L10n.text("Suspend"), systemImage: "pause.circle")
+          }
+          .help(renderTartCommand(["suspend", entry.name]))
+        } else {
+          Button {
+            store.start(vmName: entry.name, profile: currentProfile)
+          } label: {
+            Label(
+              entry.state == .suspended ? L10n.text("Resume") : L10n.text("Start"),
+              systemImage: "play.fill"
+            )
+          }
+          .buttonStyle(.borderedProminent)
+          .disabled(currentProfile.hasBlockingIssues)
+          .help(currentProfile.command(vmName: entry.name))
         }
-        .disabled(isStopping)
+
+        Spacer()
 
         Button {
-          Task { await store.suspend(vmName: entry.name) }
+          isCloning = true
         } label: {
-          Label(L10n.text("Suspend"), systemImage: "pause.circle")
+          Label(L10n.text("Clone"), systemImage: "plus.square.on.square")
         }
-        .help(L10n.text("Ask tart to save the VM state to disk"))
-      } else {
-        Button {
-          store.start(vmName: entry.name, profile: currentProfile)
+
+        Button(role: .destructive) {
+          isConfirmingDelete = true
         } label: {
-          Label(
-            entry.state == .suspended ? L10n.text("Resume") : L10n.text("Start"),
-            systemImage: "play.fill"
-          )
+          Label(L10n.text("Delete"), systemImage: "trash")
+        }
+        .disabled(entry.isRunning)
+        .help(renderTartCommand(["delete", entry.name]))
+      }
+    } else {
+      HStack(spacing: 10) {
+        Button {
+          isCloning = true
+        } label: {
+          Label(L10n.text("Clone"), systemImage: "plus.square.on.square")
         }
         .buttonStyle(.borderedProminent)
-        .disabled(currentProfile.hasBlockingIssues)
+
+        Spacer()
+
+        Button(role: .destructive) {
+          isConfirmingDelete = true
+        } label: {
+          Label(L10n.text("Delete Cache"), systemImage: "trash")
+        }
+        .help(renderTartCommand(["delete", entry.name]))
       }
+    }
+  }
 
-      Spacer()
+  private var runningCommandHint: some View {
+    HStack(spacing: 14) {
+      Label(L10n.text("CLI"), systemImage: "terminal")
+        .font(.caption.weight(.medium))
 
-      Menu {
-        Button(L10n.text("Clone…")) { isCloning = true }
-        Button(L10n.text("Push to Registry…")) { isPushing = true }
-        Button(L10n.text("Export to File…")) { exportVM() }
+      Text(renderTartCommand(["stop", entry.name]))
+      Text("•")
+        .foregroundStyle(.tertiary)
+      Text(renderTartCommand(["suspend", entry.name]))
+    }
+    .font(.system(.caption, design: .monospaced))
+    .foregroundStyle(.secondary)
+    .textSelection(.enabled)
+  }
 
-        if entry.isRunning {
-          Button(L10n.text("Run Command…")) { isExecuting = true }
-        }
+  private var cacheSection: some View {
+    GroupBox(L10n.text("OCI Image Cache")) {
+      VStack(alignment: .leading, spacing: 10) {
+        Label(
+          L10n.text("This is a cached registry image, not a runnable VM."),
+          systemImage: "shippingbox"
+        )
+        .font(.callout.weight(.medium))
 
-        if entry.source == .local {
-          Button(L10n.text("Edit Configuration…")) { isEditingConfig = true }
-            .disabled(details == nil)
-          Button(L10n.text("Rename…")) { isRenaming = true }
-            .disabled(entry.isRunning)
-        }
+        Text(L10n.text("Clone it to create a local VM before using Start or launch profiles."))
+          .font(.callout)
+          .foregroundStyle(.secondary)
 
         Divider()
 
-        Button(L10n.text("Delete…"), role: .destructive) { isConfirmingDelete = true }
-          .disabled(entry.isRunning)
-      } label: {
-        Label(L10n.text("More"), systemImage: "ellipsis.circle")
+        SpecRow(
+          label: L10n.text("Disk Usage"),
+          value: L10n.format("%@ GB", String(entry.allocatedSizeGB))
+        )
       }
-      .menuStyle(.borderlessButton)
-      .fixedSize()
+      .padding(.vertical, 4)
     }
   }
 
@@ -242,16 +283,6 @@ struct VMDetailView: View {
     }
   }
 
-  private func exportVM() {
-    let panel = NSSavePanel()
-    panel.nameFieldStringValue = "\(entry.name).tvm"
-    panel.canCreateDirectories = true
-    panel.message = L10n.text("Choose an export location. VMs can be tens of GB and may take a while to export.")
-
-    guard panel.runModal() == .OK, let url = panel.url else { return }
-    store.exportVM(name: entry.name, to: url.path)
-  }
-
   private var specSection: some View {
     GroupBox(L10n.text("Configuration")) {
       if let details {
@@ -272,6 +303,18 @@ struct VMDetailView: View {
           )
           Divider()
           SpecRow(label: L10n.text("System"), value: details.os == "darwin" ? "macOS" : details.os)
+
+          Divider()
+
+          HStack {
+            Spacer()
+
+            Button(L10n.text("Edit Configuration…")) {
+              isEditingConfig = true
+            }
+            .buttonStyle(.borderless)
+          }
+          .padding(.top, 6)
         }
       } else if let detailsError {
         Text(detailsError)
