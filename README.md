@@ -59,13 +59,19 @@ TartUI supports three normal runtime sources:
 2. An existing system installation, including Homebrew locations such as /opt/homebrew/bin/tart.
 3. A managed official Tart release downloaded by TartUI into Application Support.
 
-If Tart is not available, the first-run screen can install the official release for the user. Users can also install Tart themselves with Homebrew:
+If Tart is not available, the first-run screen offers three paths:
+
+- **Install Official Tart** — TartUI downloads the official GitHub release, verifies the published checksum when available and verifies the macOS code signature before activation.
+- **Choose Existing Tart** — select an existing executable. The path is saved only after `tart --version` succeeds.
+- **Homebrew** — install Tart yourself:
 
     brew install openai/tools/tart
 
 Managed runtimes are stored under:
 
     ~/Library/Application Support/TartUI/Runtimes
+
+TartUI keeps managed versions side by side. Settings can check the latest official release, update a managed runtime, and roll back to the previously retained managed version. System or manually selected Tart installations remain under the user's package/update management.
 
 TartUI does not modify Homebrew or the user's shell configuration.
 
