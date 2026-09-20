@@ -144,7 +144,6 @@
 "Updating Tart…" = "正在更新 Tart…";
 "Install or Update Managed Runtime" = "安装或更新托管运行时";
 "TartUI uses an existing system Tart installation when available. Managed runtimes are official Tart releases downloaded by TartUI and used as a fallback." = "TartUI 会优先使用系统中已有的 Tart。托管运行时由 TartUI 从官方发布版本下载，并在系统未安装 Tart 时作为备用。";
-"Built-in Tart" = "内置 Tart";
 "TartUI Managed Runtime" = "TartUI 托管运行时";
 "Manual Path" = "手动路径";
 "System Tart" = "系统 Tart";
@@ -299,3 +298,26 @@
 "The VM cannot be suspended in recovery mode." = "恢复模式下无法挂起虚拟机。";
 "Port forwarding is configured without allowed networks; Softnet's default restrictions may block external connections." = "配置了端口转发但未放行任何网段，Softnet 的默认限制可能导致外部无法连接。";
 "Open Serial Console and External Serial Path are alternative modes; enabling both may not work as expected." = "打开串口控制台与附加外部串口是两种方式，同时设置可能不生效。";
+
+"Tart Required" = "需要安装 Tart";
+"TartUI is a graphical interface for Tart. Install the official runtime or choose an existing Tart executable to continue." = "TartUI 是 Tart 的图形界面。请安装官方 Tart，或选择电脑上已有的 tart 可执行文件后继续。";
+"Install Official Tart" = "安装官方 Tart";
+"Choose Existing Tart…" = "选择已有 Tart…";
+"Install with Homebrew" = "使用 Homebrew 安装";
+"TartUI downloads official Tart releases from GitHub, verifies the published checksum when available and the macOS code signature, then stores the runtime in your user Application Support folder." = "TartUI 会从 GitHub 下载官方 Tart 正式版，校验可用的官方校验和及 macOS 代码签名，然后保存到当前用户的 Application Support 目录。";
+"Installed" = "已安装";
+"Version" = "版本";
+"Source" = "来源";
+"Latest Official" = "官方最新版";
+"Checking for Updates…" = "正在检查更新…";
+"Check for Official Updates" = "检查官方更新";
+"Update Managed Tart" = "更新托管 Tart";
+"A newer official Tart release is available. Update the current installation with the method you used to install it." = "发现较新的官方 Tart 版本。请使用当前 Tart 原本的安装方式进行更新。";
+"Tart is up to date." = "Tart 已是最新版。";
+"Roll Back to %@" = "回退到 %@";
+"System Tart installations are preferred. If none is available, TartUI can use an official release stored in Application Support." = "TartUI 优先使用系统中已安装的 Tart；如果没有，则使用保存在 Application Support 中的官方托管版本。";
+"Runtime Selection" = "运行时选择";
+"Use Automatic Detection" = "使用自动探测";
+"Automatic detection checks standard Homebrew locations and PATH first, then falls back to a TartUI-managed runtime. A manual path is saved only after it passes validation." = "自动探测会先检查标准 Homebrew 路径和 PATH，最后才使用 TartUI 托管运行时。手动路径只有验证成功后才会保存。";
+"Using tart %@." = "正在使用 tart %@。";
+"Managed Tart" = "托管 Tart";

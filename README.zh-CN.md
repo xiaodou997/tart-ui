@@ -59,13 +59,19 @@ TartUI 不再编译 Tart 源码，不维护 Tart fork，也不需要自己申请
 2. 系统中已经安装的 Tart，例如 /opt/homebrew/bin/tart；
 3. TartUI 下载并管理的官方 Tart 正式版。
 
-如果没有找到 Tart，首次启动页面可以直接安装官方版本。用户也可以自行使用 Homebrew：
+如果没有找到 Tart，首次启动页面提供三种方式：
+
+- **安装官方 Tart**：TartUI 从 GitHub 下载官方正式版；如果上游提供校验和则先进行校验，并验证 macOS 代码签名后再启用。
+- **选择已有 Tart**：手动选择电脑上的 `tart` 可执行文件。只有 `tart --version` 验证成功后才会保存该路径。
+- **Homebrew**：用户也可以自行安装：
 
     brew install openai/tools/tart
 
 TartUI 管理的运行时保存在：
 
     ~/Library/Application Support/TartUI/Runtimes
+
+托管版本会按版本号并存。设置页可以检查官方最新版、更新 TartUI 托管的 Tart，并回退到之前保留的托管版本。系统安装或手动选择的 Tart 仍由用户原来的安装方式负责更新。
 
 TartUI 不会修改 Homebrew，也不会修改用户的 shell 配置。
 
