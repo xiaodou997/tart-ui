@@ -81,7 +81,7 @@ struct SettingsView: View {
       } header: {
         Text(L10n.text("Tart Runtime"))
       } footer: {
-        Text(L10n.text("TartUI uses its bundled runtime when available. This action installs or updates a managed fallback; bundled Tart is updated with new TartUI releases."))
+        Text(L10n.text("TartUI uses an existing system Tart installation when available. Managed runtimes are official Tart releases downloaded by TartUI and used as a fallback."))
           .font(.caption)
           .foregroundStyle(.secondary)
       }

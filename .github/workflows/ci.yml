@@ -12,42 +12,33 @@ permissions:
 jobs:
   tests:
     name: TartUI tests
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 30
 
     steps:
       - name: Check out TartUI
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          submodules: recursive
 
       - name: Run tests
         run: swift test
 
   package:
-    name: Build single-app package
-    runs-on: macos-14
-    timeout-minutes: 90
+    name: Build app bundle
+    runs-on: macos-15
+    timeout-minutes: 30
 
     steps:
-      - name: Check out TartUI and Tart
+      - name: Check out TartUI
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          submodules: recursive
 
-      - name: Build TartUI.app with bundled Tart
+      - name: Build TartUI.app
         run: ./scripts/bundle.sh debug
 
-      - name: Verify helper and app signatures
+      - name: Verify app bundle
         run: |
-          app=".build/arm64-apple-macosx/debug/TartUI.app"
-          helper="$app/Contents/Helpers/tart.app/Contents/MacOS/tart"
-          "$helper" --version
-          test "$(/usr/libexec/PlistBuddy -c 'Print :LSUIElement' "$app/Contents/Helpers/tart.app/Contents/Info.plist")" = "true"
+          bin_path="$(swift build -c debug --product TartUI --show-bin-path)"
+          app="$bin_path/TartUI.app"
           codesign --verify --deep --strict "$app"
-          test -z "$(git -C Vendor/tart status --porcelain)"
-          test -f "$app/Contents/Resources/Legal/Tart-LICENSE.txt"
+          test -f "$app/Contents/Resources/Legal/TartUI-LICENSE.txt"
           test -f "$app/Contents/Resources/TartUI_TartUI.bundle/en.lproj/Localizable.strings"
           test -f "$app/Contents/Resources/TartUI_TartUI.bundle/zh-hans.lproj/Localizable.strings"
