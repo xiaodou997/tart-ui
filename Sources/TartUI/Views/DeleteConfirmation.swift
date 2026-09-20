@@ -191,11 +191,12 @@ private struct OperationRow: View {
       }
 
       Button(L10n.text("Details"), action: onShowDetails)
-        .buttonStyle(.borderless)
+        .buttonStyle(.glass)
+        .controlSize(.mini)
         .font(.caption2)
     }
-    .padding(7)
-    .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 6))
+    .padding(9)
+    .glassEffect(.regular, in: .rect(cornerRadius: 10))
   }
 }
 

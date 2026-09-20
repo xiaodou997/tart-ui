@@ -317,11 +317,8 @@ struct CommandPreview: View {
           .fixedSize(horizontal: true, vertical: false)
       }
     }
-    .padding(10)
-    .background {
-      RoundedRectangle(cornerRadius: 8)
-        .fill(Color.primary.opacity(0.04))
-    }
+    .padding(12)
+    .glassEffect(.regular, in: .rect(cornerRadius: 12))
   }
 }
 

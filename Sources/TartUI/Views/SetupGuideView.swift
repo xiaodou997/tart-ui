@@ -46,7 +46,7 @@ struct SetupGuideView: View {
             Label(L10n.text("Install Official Tart"), systemImage: "arrow.down.circle")
           }
         }
-        .buttonStyle(.borderedProminent)
+        .buttonStyle(.glassProminent)
         .controlSize(.large)
         .disabled(isInstalling)
 
@@ -55,6 +55,8 @@ struct SetupGuideView: View {
         } label: {
           Label(L10n.text("Choose Existing Tart…"), systemImage: "folder")
         }
+        .buttonStyle(.glass)
+        .controlSize(.large)
         .disabled(isInstalling)
       }
 
@@ -90,6 +92,7 @@ struct SetupGuideView: View {
         .multilineTextAlignment(.center)
 
       Button(L10n.text("Check Again"), action: onRetry)
+        .buttonStyle(.glass)
         .disabled(isInstalling)
     }
     .padding(32)

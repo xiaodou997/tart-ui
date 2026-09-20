@@ -180,6 +180,7 @@ struct AboutView: View {
             Text(L10n.text("Check Again"))
           }
         }
+        .buttonStyle(.glass)
         .disabled(updateStore.isChecking)
       }
 

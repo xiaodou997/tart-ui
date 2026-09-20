@@ -146,7 +146,7 @@ struct VMDetailView: View {
           } label: {
             Label(isStopping ? L10n.text("Stopping…") : L10n.text("Stop"), systemImage: "stop.circle")
           }
-          .buttonStyle(.borderedProminent)
+          .buttonStyle(.glassProminent)
           .disabled(isStopping)
           .help(CommandAction(arguments: ["stop", entry.name]).command)
 
@@ -155,6 +155,7 @@ struct VMDetailView: View {
           } label: {
             Label(L10n.text("Suspend"), systemImage: "pause.circle")
           }
+          .buttonStyle(.glass)
           .help(CommandAction(arguments: ["suspend", entry.name]).command)
         } else {
           Button {
@@ -165,7 +166,7 @@ struct VMDetailView: View {
               systemImage: "play.fill"
             )
           }
-          .buttonStyle(.borderedProminent)
+          .buttonStyle(.glassProminent)
           .disabled(currentProfile.hasBlockingIssues)
           .help(currentProfile.command(vmName: entry.name))
         }
@@ -177,6 +178,7 @@ struct VMDetailView: View {
         } label: {
           Label(L10n.text("Clone"), systemImage: "plus.square.on.square")
         }
+        .buttonStyle(.glass)
 
         Button(role: .destructive) {
           isConfirmingDelete = true
@@ -193,7 +195,7 @@ struct VMDetailView: View {
         } label: {
           Label(L10n.text("Clone"), systemImage: "plus.square.on.square")
         }
-        .buttonStyle(.borderedProminent)
+        .buttonStyle(.glassProminent)
 
         Spacer()
 

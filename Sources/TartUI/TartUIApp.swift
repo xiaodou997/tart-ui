@@ -40,15 +40,51 @@ struct TartUIApp: App {
             .toolbar {
               ToolbarItem {
                 Menu {
-                  Button(L10n.text("Clone Image…")) { isCloningImage = true }
-                  Button(L10n.text("Create macOS VM…")) { creationKind = .macOS }
-                  Button(L10n.text("Create Linux VM…")) { creationKind = .linux }
+                  Button {
+                    isCloningImage = true
+                  } label: {
+                    Label(L10n.text("Clone Image…"), systemImage: "square.and.arrow.down.on.square")
+                  }
+
+                  Button {
+                    creationKind = .macOS
+                  } label: {
+                    Label(L10n.text("Create macOS VM…"), systemImage: "apple.logo")
+                  }
+
+                  Button {
+                    creationKind = .linux
+                  } label: {
+                    Label(L10n.text("Create Linux VM…"), systemImage: "terminal")
+                  }
+
                   Divider()
-                  Button(L10n.text("Cache Image…")) { isPulling = true }
-                  Button(L10n.text("Import from File…")) { importVM() }
+
+                  Button {
+                    isPulling = true
+                  } label: {
+                    Label(L10n.text("Cache Image…"), systemImage: "shippingbox")
+                  }
+
+                  Button {
+                    importVM()
+                  } label: {
+                    Label(L10n.text("Import from File…"), systemImage: "square.and.arrow.down")
+                  }
+
                   Divider()
-                  Button(L10n.text("Prune Disk Space…")) { isPruning = true }
-                  Button(L10n.text("Registry Accounts…")) { isManagingRegistry = true }
+
+                  Button {
+                    isPruning = true
+                  } label: {
+                    Label(L10n.text("Prune Disk Space…"), systemImage: "externaldrive.badge.minus")
+                  }
+
+                  Button {
+                    isManagingRegistry = true
+                  } label: {
+                    Label(L10n.text("Registry Accounts…"), systemImage: "person.crop.circle.badge.checkmark")
+                  }
                 } label: {
                   Label(L10n.text("New"), systemImage: "plus")
                 }
@@ -209,9 +245,11 @@ private struct HomeActionsView: View {
               .font(.caption)
               .foregroundStyle(.secondary)
           }
-          .frame(width: 155, height: 86)
+          .frame(minHeight: 82)
         }
-        .buttonStyle(.borderedProminent)
+        .buttonStyle(.glassProminent)
+        .buttonBorderShape(.roundedRectangle(radius: 18))
+        .buttonSizing(.flexible)
 
         Button(action: onCreateMacOS) {
           VStack(spacing: 7) {
@@ -220,9 +258,11 @@ private struct HomeActionsView: View {
             Text(L10n.text("Create macOS VM"))
               .font(.headline)
           }
-          .frame(width: 155, height: 86)
+          .frame(minHeight: 82)
         }
-        .buttonStyle(.bordered)
+        .buttonStyle(.glass)
+        .buttonBorderShape(.roundedRectangle(radius: 18))
+        .buttonSizing(.flexible)
 
         Button(action: onCreateLinux) {
           VStack(spacing: 7) {
@@ -231,13 +271,17 @@ private struct HomeActionsView: View {
             Text(L10n.text("Create Linux VM"))
               .font(.headline)
           }
-          .frame(width: 155, height: 86)
+          .frame(minHeight: 82)
         }
-        .buttonStyle(.bordered)
+        .buttonStyle(.glass)
+        .buttonBorderShape(.roundedRectangle(radius: 18))
+        .buttonSizing(.flexible)
       }
+      .controlSize(.large)
+      .frame(maxWidth: 620)
 
       Button(L10n.text("Cache Image Only…"), action: onCacheImage)
-        .buttonStyle(.borderless)
+        .buttonStyle(.glass)
         .help(L10n.text("Run tart pull without creating a local VM"))
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
