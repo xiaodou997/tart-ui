@@ -582,7 +582,18 @@ final class VMStore {
 
   func ipAddress(for vmName: String, waitSeconds: UInt? = nil) async -> String? {
     guard let client else { return nil }
-    return try? await client.ip(name: vmName, waitSeconds: waitSeconds)
+    let action = client.ipAction(name: vmName, waitSeconds: waitSeconds)
+
+    do {
+      let result = try await operations.perform(
+        title: "\(L10n.text("IP Address")): \(vmName)",
+        action: action,
+        execute: { try await client.ipResult(name: vmName, waitSeconds: waitSeconds) }
+      )
+      return result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+    } catch {
+      return nil
+    }
   }
 
   func exec(vmName: String, command: [String]) async -> CommandResult? {

@@ -49,7 +49,11 @@ public struct TartClient: Sendable {
   /// 查询虚拟机 IP。
   ///
   /// - Parameter waitSeconds: VM 刚启动时网络尚未就绪，tart 支持等待重试。
-  public func ip(name: String, waitSeconds: UInt? = nil, resolver: IPResolver? = nil) async throws -> String {
+  public func ipAction(
+    name: String,
+    waitSeconds: UInt? = nil,
+    resolver: IPResolver? = nil
+  ) -> CommandAction {
     var arguments = ["ip", name]
     if let waitSeconds {
       arguments += ["--wait", String(waitSeconds)]
@@ -57,7 +61,20 @@ public struct TartClient: Sendable {
     if let resolver {
       arguments += ["--resolver", resolver.rawValue]
     }
-    let result = try await runChecked(arguments)
+    return CommandAction(arguments: arguments)
+  }
+
+  @discardableResult
+  public func ipResult(
+    name: String,
+    waitSeconds: UInt? = nil,
+    resolver: IPResolver? = nil
+  ) async throws -> CommandResult {
+    try await runChecked(ipAction(name: name, waitSeconds: waitSeconds, resolver: resolver))
+  }
+
+  public func ip(name: String, waitSeconds: UInt? = nil, resolver: IPResolver? = nil) async throws -> String {
+    let result = try await ipResult(name: name, waitSeconds: waitSeconds, resolver: resolver)
     return result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
