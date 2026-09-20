@@ -12,6 +12,44 @@ struct RunProfileArgumentTests {
     #expect(profile.arguments(vmName: "sequoia") == ["run", "sequoia"])
   }
 
+  @Test("命令预览保持默认命令最简")
+  func defaultCommandPreviewIsMinimal() {
+    #expect(RunProfile().command(vmName: "dev") == "tart run dev")
+  }
+
+  @Test("命令预览会对含空格的参数做 shell 引号")
+  func commandPreviewQuotesShellArguments() {
+    var profile = RunProfile()
+    profile.noGraphics = true
+    profile.noClipboard = true
+    profile.suspendable = true
+    profile.directoryShares = ["work:/Users/me/My Project:ro"]
+    profile.network = .bridged(interface: "Wi-Fi")
+
+    #expect(profile.arguments(vmName: "dev vm") == [
+      "run",
+      "dev vm",
+      "--no-graphics",
+      "--no-clipboard",
+      "--suspendable",
+      "--dir=work:/Users/me/My Project:ro",
+      "--net-bridged=Wi-Fi",
+    ])
+
+    #expect(
+      profile.command(vmName: "dev vm")
+        == "tart run 'dev vm' --no-graphics --no-clipboard --suspendable '--dir=work:/Users/me/My Project:ro' '--net-bridged=Wi-Fi'"
+    )
+  }
+
+  @Test("命令预览正确转义单引号")
+  func commandPreviewEscapesSingleQuotes() {
+    #expect(
+      RunProfile().command(vmName: "it's here")
+        == "tart run 'it'\\''s here'"
+    )
+  }
+
   @Test("显示与输入相关的开关")
   func displayFlags() {
     let profile = RunProfile(
