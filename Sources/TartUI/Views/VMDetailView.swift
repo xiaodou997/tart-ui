@@ -28,13 +28,13 @@ struct VMDetailView: View {
       VStack(alignment: .leading, spacing: 20) {
         header
         actionBar
+        profileSection
 
         if entry.isRunning {
           networkSection
         }
 
         specSection
-        profileSection
       }
       .padding(20)
       .frame(maxWidth: .infinity, alignment: .leading)
