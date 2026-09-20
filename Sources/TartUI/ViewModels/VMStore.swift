@@ -35,7 +35,7 @@ final class VMStore {
     }
   }
 
-  /// Long-running tart commands such as run, clone, create, pull and push.
+  /// Unified history for user-triggered Tart CLI actions.
   let operations = OperationCenter()
 
   private(set) var profiles = ProfileCollection()
@@ -269,9 +269,11 @@ final class VMStore {
       return
     }
 
+    let action = client.runAction(name: vmName, profile: profile)
     operations.run(
       title: L10n.format("Run \"%@\"", vmName),
-      stream: { client.runVM(name: vmName, profile: profile) },
+      action: action,
+      stream: { client.stream(action) },
       onSuccess: { [weak self] in await self?.refresh() }
     )
 
@@ -283,8 +285,14 @@ final class VMStore {
 
   func stop(vmName: String) async {
     guard let client else { return }
+    let action = client.stopAction(name: vmName)
+
     do {
-      try await client.stop(name: vmName)
+      _ = try await operations.perform(
+        title: "\(L10n.text("Stop")) \(vmName)",
+        action: action,
+        execute: { try await client.stop(name: vmName) }
+      )
       await refresh()
     } catch {
       actionError = error.localizedDescription
@@ -293,8 +301,14 @@ final class VMStore {
 
   func suspend(vmName: String) async {
     guard let client else { return }
+    let action = client.suspendAction(name: vmName)
+
     do {
-      try await client.suspend(name: vmName)
+      _ = try await operations.perform(
+        title: "\(L10n.text("Suspend")) \(vmName)",
+        action: action,
+        execute: { try await client.suspend(name: vmName) }
+      )
       await refresh()
     } catch {
       actionError = error.localizedDescription
@@ -317,9 +331,11 @@ final class VMStore {
     case .macOSFromIPSW: title = L10n.format("Create macOS VM \"%@\"", name)
     }
 
+    let action = client.createAction(name: name, source: source, diskSizeGB: diskSizeGB, diskFormat: diskFormat)
     operations.run(
       title: title,
-      stream: { client.create(name: name, source: source, diskSizeGB: diskSizeGB, diskFormat: diskFormat) },
+      action: action,
+      stream: { client.stream(action) },
       onSuccess: { [weak self] in await self?.refresh() }
     )
   }
@@ -327,9 +343,11 @@ final class VMStore {
   func cloneVM(source: String, newName: String, insecure: Bool = false, concurrency: UInt? = nil) {
     guard let client else { return }
 
+    let action = client.cloneAction(source: source, newName: newName, insecure: insecure, concurrency: concurrency)
     operations.run(
       title: L10n.format("Clone \"%@\" → \"%@\"", source, newName),
-      stream: { client.clone(source: source, newName: newName, insecure: insecure, concurrency: concurrency) },
+      action: action,
+      stream: { client.stream(action) },
       onSuccess: { [weak self] in await self?.refresh() }
     )
   }
@@ -347,16 +365,33 @@ final class VMStore {
     diskSizeGB: Int? = nil
   ) async {
     guard let client else { return }
+    let action = client.setAction(
+      name: name,
+      cpuCount: cpuCount,
+      memoryMB: memoryMB,
+      display: display,
+      displayUnit: displayUnit,
+      randomMAC: randomMAC,
+      randomSerial: randomSerial,
+      diskSizeGB: diskSizeGB
+    )
+
     do {
-      try await client.set(
-        name: name,
-        cpuCount: cpuCount,
-        memoryMB: memoryMB,
-        display: display,
-        displayUnit: displayUnit,
-        randomMAC: randomMAC,
-        randomSerial: randomSerial,
-        diskSizeGB: diskSizeGB
+      _ = try await operations.perform(
+        title: "\(L10n.text("Edit Configuration")) \(name)",
+        action: action,
+        execute: {
+          try await client.set(
+            name: name,
+            cpuCount: cpuCount,
+            memoryMB: memoryMB,
+            display: display,
+            displayUnit: displayUnit,
+            randomMAC: randomMAC,
+            randomSerial: randomSerial,
+            diskSizeGB: diskSizeGB
+          )
+        }
       )
       await refresh()
     } catch {
@@ -366,8 +401,13 @@ final class VMStore {
 
   func rename(name: String, to newName: String) async {
     guard let client else { return }
+    let action = client.renameAction(name: name, to: newName)
     do {
-      try await client.rename(name: name, to: newName)
+      _ = try await operations.perform(
+        title: "\(L10n.text("Rename")) \(name)",
+        action: action,
+        execute: { try await client.rename(name: name, to: newName) }
+      )
       profiles.rename(vmName: name, to: newName)
       persistProfiles()
       await refresh()
@@ -378,8 +418,13 @@ final class VMStore {
 
   func delete(names: [String]) async {
     guard let client else { return }
+    let action = client.deleteAction(names: names)
     do {
-      try await client.delete(names: names)
+      _ = try await operations.perform(
+        title: L10n.text("Delete"),
+        action: action,
+        execute: { try await client.delete(names: names) }
+      )
       for name in names {
         profiles.removeAll(for: name)
       }
@@ -395,9 +440,11 @@ final class VMStore {
   func pull(reference: String, insecure: Bool = false, concurrency: UInt? = nil) {
     guard let client else { return }
 
+    let action = client.pullAction(remoteName: reference, insecure: insecure, concurrency: concurrency)
     operations.run(
       title: L10n.format("Pull \"%@\"", reference),
-      stream: { client.pull(remoteName: reference, insecure: insecure, concurrency: concurrency) },
+      action: action,
+      stream: { client.stream(action) },
       onSuccess: { [weak self] in await self?.refresh() }
     )
   }
@@ -417,19 +464,19 @@ final class VMStore {
       ? remoteNames[0]
       : L10n.format("%@ targets", String(remoteNames.count))
 
+    let action = client.pushAction(
+      localName: localName,
+      remoteNames: remoteNames,
+      insecure: insecure,
+      concurrency: concurrency,
+      chunkSizeMB: chunkSizeMB,
+      labels: labels,
+      populateCache: populateCache
+    )
     operations.run(
       title: L10n.format("Push \"%@\" → %@", localName, target),
-      stream: {
-        client.push(
-          localName: localName,
-          remoteNames: remoteNames,
-          insecure: insecure,
-          concurrency: concurrency,
-          chunkSizeMB: chunkSizeMB,
-          labels: labels,
-          populateCache: populateCache
-        )
-      },
+      action: action,
+      stream: { client.stream(action) },
       onSuccess: { [weak self] in await self?.refresh() }
     )
   }
@@ -442,13 +489,20 @@ final class VMStore {
     validate: Bool
   ) async -> String? {
     guard let client else { return L10n.text("tart is unavailable.") }
+    let action = client.loginAction(host: host, username: username, insecure: insecure, validate: validate)
     do {
-      try await client.login(
-        host: host,
-        username: username,
-        password: password,
-        insecure: insecure,
-        validate: validate
+      _ = try await operations.perform(
+        title: "\(L10n.text("Log In")) \(host)",
+        action: action,
+        execute: {
+          try await client.login(
+            host: host,
+            username: username,
+            password: password,
+            insecure: insecure,
+            validate: validate
+          )
+        }
       )
       return nil
     } catch {
@@ -458,8 +512,13 @@ final class VMStore {
 
   func logout(host: String) async -> String? {
     guard let client else { return L10n.text("tart is unavailable.") }
+    let action = client.logoutAction(host: host)
     do {
-      try await client.logout(host: host)
+      _ = try await operations.perform(
+        title: "\(L10n.text("Log Out")) \(host)",
+        action: action,
+        execute: { try await client.logout(host: host) }
+      )
       return nil
     } catch {
       return error.localizedDescription
@@ -471,18 +530,22 @@ final class VMStore {
   func exportVM(name: String, to path: String) {
     guard let client else { return }
 
+    let action = client.exportAction(name: name, to: path)
     operations.run(
       title: L10n.format("Export \"%@\"", name),
-      stream: { client.export(name: name, to: path) }
+      action: action,
+      stream: { client.stream(action) }
     )
   }
 
   func importVM(from path: String, name: String) {
     guard let client else { return }
 
+    let action = client.importAction(from: path, name: name)
     operations.run(
       title: L10n.format("Import \"%@\"", name),
-      stream: { client.importVM(from: path, name: name) },
+      action: action,
+      stream: { client.stream(action) },
       onSuccess: { [weak self] in await self?.refresh() }
     )
   }
@@ -501,11 +564,12 @@ final class VMStore {
 
   func prune(target: PruneTarget, olderThanDays: UInt?, spaceBudgetGB: UInt?) async {
     guard let client else { return }
+    let action = client.pruneAction(target: target, olderThanDays: olderThanDays, spaceBudgetGB: spaceBudgetGB)
     do {
-      try await client.prune(
-        target: target,
-        olderThanDays: olderThanDays,
-        spaceBudgetGB: spaceBudgetGB
+      _ = try await operations.perform(
+        title: L10n.text("Prune Disk Space"),
+        action: action,
+        execute: { try await client.prune(target: target, olderThanDays: olderThanDays, spaceBudgetGB: spaceBudgetGB) }
       )
       await refresh()
       pruneOrphanProfiles()
@@ -523,8 +587,13 @@ final class VMStore {
 
   func exec(vmName: String, command: [String]) async -> CommandResult? {
     guard let client else { return nil }
+    let action = client.execAction(name: vmName, command: command)
     do {
-      return try await client.exec(name: vmName, command: command)
+      return try await operations.perform(
+        title: "\(L10n.text("Run a Command in the VM")): \(vmName)",
+        action: action,
+        execute: { try await client.exec(name: vmName, command: command) }
+      )
     } catch {
       actionError = error.localizedDescription
       return nil

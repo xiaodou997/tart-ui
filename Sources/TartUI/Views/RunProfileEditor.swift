@@ -5,22 +5,7 @@ import TartKit
 /// Renders Tart argv as a copy-pasteable shell command for lightweight UI previews.
 /// Phase 6 can promote this into the shared command-action model.
 func renderTartCommand(_ arguments: [String], executable: String = "tart") -> String {
-  ([executable] + arguments)
-    .map(shellQuote)
-    .joined(separator: " ")
-}
-
-private func shellQuote(_ argument: String) -> String {
-  guard !argument.isEmpty else { return "''" }
-
-  let safe = CharacterSet.alphanumerics
-    .union(CharacterSet(charactersIn: "-._/:=,+@%~"))
-
-  if argument.unicodeScalars.allSatisfy({ safe.contains($0) }) {
-    return argument
-  }
-
-  return "'" + argument.replacingOccurrences(of: "'", with: "'\\''") + "'"
+  CommandAction(arguments: arguments, executable: executable).command
 }
 
 /// A focused editor for the launch options people change most often.
@@ -304,7 +289,80 @@ struct RunProfileEditor: View {
   }
 }
 
-/// A command preview shared by the profile editor and VM detail view.
+/// Shared CLI transparency surface used before and after execution.
+struct CommandPreview: View {
+  let action: CommandAction
+  var state: BackgroundOperation.State? = nil
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      HStack {
+        Label(L10n.text("Command"), systemImage: "terminal")
+          .font(.caption.weight(.medium))
+
+        if let state {
+          CommandStateBadge(state: state)
+        }
+
+        Spacer()
+
+        Button {
+          NSPasteboard.general.clearContents()
+          NSPasteboard.general.setString(action.command, forType: .string)
+        } label: {
+          Image(systemName: "doc.on.doc")
+        }
+        .buttonStyle(.borderless)
+        .help(L10n.text("Copy"))
+      }
+
+      ScrollView(.horizontal, showsIndicators: false) {
+        Text(action.command)
+          .font(.system(.caption, design: .monospaced))
+          .textSelection(.enabled)
+          .fixedSize(horizontal: true, vertical: false)
+      }
+    }
+    .padding(10)
+    .background {
+      RoundedRectangle(cornerRadius: 8)
+        .fill(Color.primary.opacity(0.04))
+    }
+  }
+}
+
+struct CommandStateBadge: View {
+  let state: BackgroundOperation.State
+
+  var body: some View {
+    Text(label)
+      .font(.caption2.weight(.medium))
+      .padding(.horizontal, 6)
+      .padding(.vertical, 2)
+      .background(color.opacity(0.14), in: Capsule())
+      .foregroundStyle(color)
+  }
+
+  private var label: String {
+    switch state {
+    case .running: L10n.text("Running")
+    case .succeeded: L10n.text("Succeeded")
+    case .failed: L10n.text("Failed")
+    case .cancelled: L10n.text("Cancelled")
+    }
+  }
+
+  private var color: Color {
+    switch state {
+    case .running: .blue
+    case .succeeded: .green
+    case .failed: .red
+    case .cancelled: .secondary
+    }
+  }
+}
+
+/// Compatibility wrapper while older views migrate to CommandPreview.
 struct RunCommandPreview: View {
   let command: String
 
@@ -313,9 +371,7 @@ struct RunCommandPreview: View {
       HStack {
         Label(L10n.text("Command"), systemImage: "terminal")
           .font(.caption.weight(.medium))
-
         Spacer()
-
         Button {
           NSPasteboard.general.clearContents()
           NSPasteboard.general.setString(command, forType: .string)
@@ -325,7 +381,6 @@ struct RunCommandPreview: View {
         .buttonStyle(.borderless)
         .help(L10n.text("Copy"))
       }
-
       ScrollView(.horizontal, showsIndicators: false) {
         Text(command)
           .font(.system(.caption, design: .monospaced))

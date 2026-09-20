@@ -365,3 +365,13 @@
 "Cache Image" = "Cache Image";
 "Caching runs tart pull only. It does not create a runnable local VM." = "Caching runs tart pull only. It does not create a runnable local VM.";
 "Cache" = "Cache";
+
+/* Unified CLI transparency */
+"Succeeded" = "Succeeded";
+"Failed" = "Failed";
+"Cancelled" = "Cancelled";
+"Details" = "Details";
+"No stdout output." = "No stdout output.";
+"No stderr output." = "No stderr output.";
+"Duration: %@" = "Duration: %@";
+"Command failed." = "Command failed.";

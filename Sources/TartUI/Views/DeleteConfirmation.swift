@@ -67,9 +67,7 @@ struct DeleteConfirmation: View {
         }
       }
 
-      RunCommandPreview(
-        command: renderTartCommand(["delete"] + entries.map(\.name))
-      )
+      CommandPreview(action: CommandAction(arguments: ["delete"] + entries.map(\.name)))
 
       HStack {
         Spacer()
@@ -115,7 +113,7 @@ struct DeleteConfirmation: View {
   }
 }
 
-/// 后台长时操作的状态条，显示在侧边栏底部。
+/// Unified Tart command history shown at the bottom of the sidebar.
 struct OperationStatusBar: View {
   let center: OperationCenter
   @State private var expandedOperation: BackgroundOperation?
@@ -130,7 +128,7 @@ struct OperationStatusBar: View {
               operation: operation,
               onCancel: { center.cancel(operation) },
               onDismiss: { center.dismiss(operation) },
-              onShowLog: { expandedOperation = operation }
+              onShowDetails: { expandedOperation = operation }
             )
           }
         }
@@ -147,18 +145,16 @@ private struct OperationRow: View {
   let operation: BackgroundOperation
   let onCancel: () -> Void
   let onDismiss: () -> Void
-  let onShowLog: () -> Void
+  let onShowDetails: () -> Void
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 3) {
+    VStack(alignment: .leading, spacing: 4) {
       HStack(spacing: 6) {
-        statusIcon
-
+        CommandStateBadge(state: operation.state)
         Text(operation.title)
           .font(.caption)
           .lineLimit(1)
           .truncationMode(.middle)
-
         Spacer()
 
         if operation.state.isFinished {
@@ -168,87 +164,77 @@ private struct OperationRow: View {
             Image(systemName: "xmark").font(.caption2)
           }
           .buttonStyle(.borderless)
-        } else {
+        } else if operation.isCancellable {
           Button(L10n.text("Cancel"), action: onCancel)
             .buttonStyle(.borderless)
             .font(.caption2)
         }
       }
 
-      // 进度百分比要靠解析 tart 的输出格式，那个格式没有稳定保证，
-      // 所以这里只显示最后一行原始输出，格式变了也不会误导用户。
-      if let latest = operation.latestLine {
-        Text(latest)
-          .font(.caption2)
-          .foregroundStyle(.secondary)
-          .lineLimit(1)
-          .truncationMode(.middle)
-      }
-
-      if case let .failed(reason) = operation.state {
-        Text(reason)
-          .font(.caption2)
-          .foregroundStyle(.red)
-          .lineLimit(2)
-      }
-
-      if !operation.recentLines.isEmpty {
-        Button(L10n.text("View Log"), action: onShowLog)
-          .buttonStyle(.borderless)
-          .font(.caption2)
-      }
-    }
-    .padding(6)
-    .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 5))
-  }
-
-  @ViewBuilder
-  private var statusIcon: some View {
-    switch operation.state {
-    case .running:
-      ProgressView().controlSize(.mini)
-    case .succeeded:
-      Image(systemName: "checkmark.circle.fill")
-        .foregroundStyle(.green)
-        .font(.caption)
-    case .failed:
-      Image(systemName: "xmark.circle.fill")
-        .foregroundStyle(.red)
-        .font(.caption)
-    case .cancelled:
-      Image(systemName: "minus.circle.fill")
+      Text(operation.action.command)
+        .font(.system(.caption2, design: .monospaced))
         .foregroundStyle(.secondary)
-        .font(.caption)
+        .lineLimit(1)
+        .truncationMode(.middle)
+        .textSelection(.enabled)
+
+      if let latest = operation.latestLine {
+        HStack(spacing: 5) {
+          Text(latest.stream.rawValue)
+            .font(.caption2.weight(.semibold))
+          Text(latest.text)
+            .font(.caption2)
+            .lineLimit(1)
+            .truncationMode(.middle)
+        }
+        .foregroundStyle(latest.stream == .stderr ? .orange : .secondary)
+      }
+
+      Button(L10n.text("Details"), action: onShowDetails)
+        .buttonStyle(.borderless)
+        .font(.caption2)
     }
+    .padding(7)
+    .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 6))
   }
 }
 
-/// 后台操作的完整日志。
 struct OperationLogView: View {
   let operation: BackgroundOperation
   @Environment(\.dismiss) private var dismiss
 
   var body: some View {
     VStack(spacing: 0) {
-      Text(operation.title)
-        .font(.headline)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
+      HStack {
+        Text(operation.title).font(.headline)
+        CommandStateBadge(state: operation.state)
+        Spacer()
+      }
+      .padding()
 
       Divider()
 
-      ScrollView {
-        LazyVStack(alignment: .leading, spacing: 2) {
-          ForEach(Array(operation.recentLines.enumerated()), id: \.offset) { _, line in
-            Text(line)
-              .font(.system(.caption, design: .monospaced))
-              .textSelection(.enabled)
-              .frame(maxWidth: .infinity, alignment: .leading)
+      VStack(alignment: .leading, spacing: 12) {
+        CommandPreview(action: operation.action, state: operation.state)
+
+        HStack(spacing: 18) {
+          if let pid = operation.processIdentifier {
+            Text("PID \(pid)")
           }
+          if let code = operation.exitCode {
+            Text(L10n.format("Exit code %@", String(code)))
+          }
+          Text(L10n.format("Duration: %@", String(format: "%.1fs", operation.duration)))
         }
-        .padding(12)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+
+        HStack(alignment: .top, spacing: 12) {
+          outputPanel(title: "stdout", lines: operation.stdoutLines, emptyText: L10n.text("No stdout output."))
+          outputPanel(title: "stderr", lines: operation.stderrLines, emptyText: L10n.text("No stderr output."))
+        }
       }
-      .background(.background.secondary)
+      .padding(12)
 
       Divider()
 
@@ -265,6 +251,31 @@ struct OperationLogView: View {
       }
       .padding()
     }
-    .frame(width: 680, height: 420)
+    .frame(width: 780, height: 540)
+  }
+
+  private func outputPanel(title: String, lines: [String], emptyText: String) -> some View {
+    GroupBox(title) {
+      ScrollView {
+        if lines.isEmpty {
+          Text(emptyText)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+          LazyVStack(alignment: .leading, spacing: 2) {
+            ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+              Text(line)
+                .font(.system(.caption, design: .monospaced))
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+          }
+        }
+      }
+      .frame(maxWidth: .infinity, minHeight: 240, maxHeight: 280)
+      .padding(.vertical, 4)
+    }
+    .frame(maxWidth: .infinity)
   }
 }
