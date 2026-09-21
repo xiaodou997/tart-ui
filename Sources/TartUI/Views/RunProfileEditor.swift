@@ -8,6 +8,7 @@ import TartKit
 /// they are intentionally not presented as a large advanced configuration form.
 struct RunProfileEditor: View {
   @State private var profile: RunProfile
+  @State private var availableBridgeInterfaces: [BridgedNetworkInterfaceInfo] = []
   let vmName: String
   let onSave: (RunProfile) -> Void
 
@@ -38,7 +39,10 @@ struct RunProfileEditor: View {
       Divider()
       footer
     }
-    .frame(width: 600, height: 560)
+    .frame(width: 620, height: 600)
+    .onAppear {
+      refreshBridgeInterfaces()
+    }
   }
 
   private var header: some View {
@@ -130,11 +134,64 @@ struct RunProfileEditor: View {
 
       switch profile.network {
       case .bridged:
-        TextField(
-          L10n.text("Interface"),
-          text: bridgeInterfaceBinding,
-          prompt: Text(L10n.text("e.g. en0 or Wi-Fi"))
-        )
+        VStack(alignment: .leading, spacing: 10) {
+          HStack {
+            VStack(alignment: .leading, spacing: 2) {
+              Text(L10n.text("Network Adapters"))
+                .font(.subheadline.weight(.medium))
+              Text(L10n.text("Bridged networking connects the VM directly to one or more host network interfaces."))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Button {
+              refreshBridgeInterfaces()
+            } label: {
+              Image(systemName: "arrow.clockwise")
+            }
+            .buttonStyle(.borderless)
+            .help(L10n.text("Refresh Network Interfaces"))
+          }
+
+          if availableBridgeInterfaces.isEmpty {
+            Label(
+              L10n.text("No bridgeable network interfaces were found on this Mac."),
+              systemImage: "network.slash"
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          }
+
+          ForEach(bridgeInterfaceValues.indices, id: \.self) { index in
+            HStack(spacing: 8) {
+              Picker(
+                "\(L10n.text("Adapter")) \(index + 1)",
+                selection: bridgeInterfaceBinding(at: index)
+              ) {
+                ForEach(bridgeChoices(for: index)) { choice in
+                  Text(choice.label).tag(choice.value)
+                }
+              }
+
+              Button {
+                removeBridgedInterface(at: index)
+              } label: {
+                Image(systemName: "minus.circle")
+              }
+              .buttonStyle(.borderless)
+              .help(L10n.text("Remove Network Adapter"))
+            }
+          }
+
+          Button {
+            addBridgedInterface()
+          } label: {
+            Label(L10n.text("Add Network Adapter"), systemImage: "plus")
+          }
+          .disabled(firstUnusedBridgeInterface == nil)
+        }
 
       case .softnet:
         Label(
@@ -227,7 +284,7 @@ struct RunProfileEditor: View {
           profile.network = .hostOnly
         case .bridged:
           if case .bridged = profile.network { return }
-          profile.network = .bridged(interface: "")
+          profile.network = .bridged(interfaces: [])
         case .softnet:
           if case .softnet = profile.network { return }
           profile.network = .softnet(SoftnetOptions())
@@ -236,18 +293,111 @@ struct RunProfileEditor: View {
     )
   }
 
-  private var bridgeInterfaceBinding: Binding<String> {
-    Binding(
-      get: {
-        if case let .bridged(interface) = profile.network {
-          return interface
-        }
-        return ""
-      },
-      set: {
-        profile.network = .bridged(interface: $0)
+  private struct BridgeChoice: Identifiable {
+    let value: String
+    let label: String
+
+    var id: String { value }
+  }
+
+  private var bridgeInterfaceValues: [String] {
+    guard case let .bridged(interfaces) = profile.network else { return [] }
+    return interfaces
+  }
+
+  private var firstUnusedBridgeInterface: BridgedNetworkInterfaceInfo? {
+    let selected = Set(bridgeInterfaceValues)
+    return availableBridgeInterfaces.first { !selected.contains($0.identifier) }
+  }
+
+  private func bridgeChoices(for index: Int) -> [BridgeChoice] {
+    let values = bridgeInterfaceValues
+    guard values.indices.contains(index) else { return [] }
+
+    let current = values[index]
+    let usedElsewhere = Set(
+      values.enumerated().compactMap { offset, value in
+        offset == index ? nil : value
       }
     )
+
+    var choices = availableBridgeInterfaces
+      .filter { !usedElsewhere.contains($0.identifier) }
+      .map { BridgeChoice(value: $0.identifier, label: $0.displayLabel) }
+
+    if !current.isEmpty && !choices.contains(where: { $0.value == current }) {
+      choices.insert(
+        BridgeChoice(
+          value: current,
+          label: L10n.format("%@ (Unavailable)", current)
+        ),
+        at: 0
+      )
+    }
+
+    return choices
+  }
+
+  private func bridgeInterfaceBinding(at index: Int) -> Binding<String> {
+    Binding(
+      get: {
+        let values = bridgeInterfaceValues
+        return values.indices.contains(index) ? values[index] : ""
+      },
+      set: { newValue in
+        guard case var .bridged(interfaces) = profile.network,
+              interfaces.indices.contains(index)
+        else {
+          return
+        }
+
+        interfaces[index] = newValue
+        profile.network = .bridged(interfaces: interfaces)
+      }
+    )
+  }
+
+  private func addBridgedInterface() {
+    guard let next = firstUnusedBridgeInterface,
+          case var .bridged(interfaces) = profile.network
+    else {
+      return
+    }
+
+    interfaces.append(next.identifier)
+    profile.network = .bridged(interfaces: interfaces)
+  }
+
+  private func removeBridgedInterface(at index: Int) {
+    guard case var .bridged(interfaces) = profile.network,
+          interfaces.indices.contains(index)
+    else {
+      return
+    }
+
+    interfaces.remove(at: index)
+    profile.network = .bridged(interfaces: interfaces)
+  }
+
+  private func refreshBridgeInterfaces() {
+    let interfaces = BridgedNetworkInterfaceCatalog.available()
+    availableBridgeInterfaces = interfaces
+
+    // Older profiles may store Tart's localized display name ("Wi-Fi") rather
+    // than the stable interface identifier ("en0"). Normalize when possible.
+    guard case let .bridged(selected) = profile.network else { return }
+
+    let normalized = selected.map { value in
+      if interfaces.contains(where: { $0.identifier == value }) {
+        return value
+      }
+
+      return interfaces.first(where: { $0.displayName == value })?.identifier ?? value
+    }
+
+    if normalized != selected {
+      profile.network = .bridged(interfaces: normalized)
+    }
   }
 
   // MARK: - Compatibility
