@@ -354,7 +354,54 @@ struct VMDetailView: View {
 
   private var launchSettingsSection: some View {
     GroupBox(L10n.text("Launch")) {
-      VStack(alignment: .leading, spacing: 10) {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack {
+          Text(L10n.text("Configuration"))
+            .font(.callout.weight(.medium))
+
+          Spacer()
+
+          Button(L10n.text("Edit Configuration…")) {
+            isEditingConfig = true
+          }
+          .buttonStyle(.borderless)
+          .disabled(details == nil)
+        }
+
+        if let details {
+          HStack(alignment: .top, spacing: 16) {
+            LaunchSummaryItem(
+              systemImage: "cpu",
+              label: L10n.text("CPU"),
+              value: L10n.format("%@ cores", String(details.cpuCount))
+            )
+            LaunchSummaryItem(
+              systemImage: "memorychip",
+              label: L10n.text("Memory"),
+              value: L10n.format("%@ GB", String(format: "%.0f", details.memoryGB))
+            )
+            LaunchSummaryItem(
+              systemImage: "display",
+              label: L10n.text("Display"),
+              value: details.display.description
+            )
+            LaunchSummaryItem(
+              systemImage: "network",
+              label: L10n.text("Network"),
+              value: networkSummary
+            )
+          }
+        } else if let detailsError {
+          Text(detailsError)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        } else {
+          ProgressView()
+            .controlSize(.small)
+        }
+
+        Divider()
+
         HStack {
           Text(L10n.text("Launch Settings"))
             .font(.callout.weight(.medium))
@@ -389,6 +436,21 @@ struct VMDetailView: View {
     }
   }
 
+  private var networkSummary: String {
+    switch currentSettings.network {
+    case .shared:
+      return L10n.text("Shared (NAT)")
+    case let .bridged(interfaces):
+      let names = interfaces.filter { !$0.isEmpty }
+      guard !names.isEmpty else { return L10n.text("Bridged") }
+      return "\(L10n.text("Bridged")) · \(names.joined(separator: ", "))"
+    case .hostOnly:
+      return L10n.text("Host Only")
+    case .softnet:
+      return "Softnet"
+    }
+  }
+
   private func loadDetails() async {
     details = nil
     detailsError = nil
@@ -399,6 +461,27 @@ struct VMDetailView: View {
     } catch {
       detailsError = error.localizedDescription
     }
+  }
+}
+
+private struct LaunchSummaryItem: View {
+  let systemImage: String
+  let label: String
+  let value: String
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 4) {
+      Label(label, systemImage: systemImage)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+
+      Text(value)
+        .font(.callout.weight(.medium))
+        .lineLimit(1)
+        .truncationMode(.middle)
+        .textSelection(.enabled)
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
   }
 }
 
