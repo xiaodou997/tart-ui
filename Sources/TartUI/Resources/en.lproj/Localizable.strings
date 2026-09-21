@@ -125,32 +125,13 @@
 "Login succeeded." = "Login succeeded.";
 "Logged out." = "Logged out.";
 "Profile Name" = "Profile Name";
-"Display and Input" = "Display and Input";
-"No Graphics Window" = "No Graphics Window";
-"Useful when accessing the VM only through SSH or VNC" = "Useful when accessing the VM only through SSH or VNC";
-"Use Screen Sharing" = "Use Screen Sharing";
-"Remote Login must be enabled inside the VM" = "Remote Login must be enabled inside the VM";
-"Use Experimental VNC" = "Use Experimental VNC";
-"Available in recovery mode and during installation, but marked experimental by the upstream project" = "Available in recovery mode and during installation, but marked experimental by the upstream project";
-"Send System Shortcuts to VM" = "Send System Shortcuts to VM";
-"When enabled, shortcuts such as Cmd+Tab are received by the VM instead of the host" = "When enabled, shortcuts such as Cmd+Tab are received by the VM instead of the host";
-"Disable Trackpad" = "Disable Trackpad";
-"Disable Pointer" = "Disable Pointer";
-"Disable Keyboard" = "Disable Keyboard";
-"Devices" = "Devices";
-"Disable Audio" = "Disable Audio";
 "Disable Clipboard Sharing" = "Disable Clipboard Sharing";
-"Suspendable" = "Suspendable";
-"Disables audio and entropy devices and uses Mac-specific input devices. Only VMs started this way can be suspended" = "Disables audio and entropy devices and uses Mac-specific input devices. Only VMs started this way can be suspended";
-"Enable Nested Virtualization" = "Enable Nested Virtualization";
 "Boot into Recovery Mode" = "Boot into Recovery Mode";
 "Network" = "Network";
 "Network Mode" = "Network Mode";
 "Shared (NAT)" = "Shared (NAT)";
 "Bridged" = "Bridged";
 "Host Only" = "Host Only";
-"Interface" = "Interface";
-"e.g. en0 or Wi-Fi" = "e.g. en0 or Wi-Fi";
 "Network Adapters" = "Network Adapters";
 "Bridged networking connects the VM directly to one or more host network interfaces." = "Bridged networking connects the VM directly to one or more host network interfaces.";
 "Refresh Network Interfaces" = "Refresh Network Interfaces";
@@ -161,26 +142,8 @@
 "%@ (Unavailable)" = "%@ (Unavailable)";
 "Select at least one bridged network adapter." = "Select at least one bridged network adapter.";
 "Each bridged network adapter can only be added once." = "Each bridged network adapter can only be added once.";
-"Allowed Networks" = "Allowed Networks";
-"Comma-separated, e.g. 192.168.0.0/24" = "Comma-separated, e.g. 192.168.0.0/24";
-"Blocked Networks" = "Blocked Networks";
-"Comma-separated" = "Comma-separated";
-"Port Forwards" = "Port Forwards";
-"e.g. 2222:22,8080:80" = "e.g. 2222:22,8080:80";
-"Format: host-port:guest-port; separate multiple entries with commas" = "Format: host-port:guest-port; separate multiple entries with commas";
-"Storage and Sharing" = "Storage and Sharing";
-"Attached Disks" = "Attached Disks";
-"path[:options], e.g. /tmp/data.img:ro" = "path[:options], e.g. /tmp/data.img:ro";
 "Directory Shares" = "Directory Shares";
 "[name:]path[:options], e.g. ~/src:ro" = "[name:]path[:options], e.g. ~/src:ro";
-"Advanced" = "Advanced";
-"Root Disk Options" = "Root Disk Options";
-"e.g. ro or caching=cached,sync=none" = "e.g. ro or caching=cached,sync=none";
-"Rosetta Tag" = "Rosetta Tag";
-"Only applies to Linux guests" = "Only applies to Linux guests";
-"Open Serial Console" = "Open Serial Console";
-"External Serial Path" = "External Serial Path";
-"e.g. /dev/ttys001" = "e.g. /dev/ttys001";
 "Edit Configuration" = "Edit Configuration";
 "The VM is running. Configuration changes take effect after shutdown." = "The VM is running. Configuration changes take effect after shutdown.";
 "CPU and Memory" = "CPU and Memory";
@@ -255,12 +218,8 @@
 "Process exited with code %@" = "Process exited with code %@";
 "Start failed: %@" = "Start failed: %@";
 "Bridged networking requires Apple's restricted VM networking entitlement. Choose Shared (NAT), or request it from Apple." = "Bridged networking requires Apple's restricted VM networking entitlement. Choose Shared (NAT), or request it from Apple.";
-"Screen Sharing and Experimental VNC cannot be enabled together. Choose one." = "Screen Sharing and Experimental VNC cannot be enabled together. Choose one.";
 "The graphics window is disabled and no VNC mode is enabled; the VM will only be accessible through SSH." = "The graphics window is disabled and no VNC mode is enabled; the VM will only be accessible through SSH.";
-"Suspendable already disables audio; disabling audio separately is unnecessary." = "Suspendable already disables audio; disabling audio separately is unnecessary.";
 "The VM cannot be suspended in recovery mode." = "The VM cannot be suspended in recovery mode.";
-"Port forwarding is configured without allowed networks; Softnet's default restrictions may block external connections." = "Port forwarding is configured without allowed networks; Softnet's default restrictions may block external connections.";
-"Open Serial Console and External Serial Path are alternative modes; enabling both may not work as expected." = "Open Serial Console and External Serial Path are alternative modes; enabling both may not work as expected.";
 
 "Tart Required" = "Tart Required";
 "TartUI is a graphical interface for Tart. Install the official runtime or choose an existing Tart executable to continue." = "TartUI is a graphical interface for Tart. Install the official runtime or choose an existing Tart executable to continue.";
@@ -287,15 +246,12 @@
 
 /* Simplified Run Profile */
 "Launch" = "Launch";
+"Softnet uses Tart defaults." = "Softnet uses Tart defaults.";
 "Window" = "Window";
 "Headless" = "Headless";
 "Screen Sharing" = "Screen Sharing";
 "Allow Suspend" = "Allow Suspend";
 "Directory Sharing" = "Directory Sharing";
-"Softnet uses Tart defaults. Existing allow, block, and port-forward rules are preserved in the command preview." = "Softnet uses Tart defaults. Existing allow, block, and port-forward rules are preserved in the command preview.";
-"Legacy Advanced Options" = "Legacy Advanced Options";
-"This profile contains advanced options from an earlier TartUI version. They are preserved and remain visible in the command preview." = "This profile contains advanced options from an earlier TartUI version. They are preserved and remain visible in the command preview.";
-"Remove Legacy Advanced Options" = "Remove Legacy Advanced Options";
 
 /* Simplified VM Detail */
 "OCI Image Cache" = "OCI Image Cache";
