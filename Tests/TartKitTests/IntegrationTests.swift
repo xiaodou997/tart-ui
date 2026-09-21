@@ -9,10 +9,10 @@ import Testing
 ///
 /// 仅包含只读命令（list / get / --version），不会创建、修改或删除任何虚拟机。
 /// 没装 tart 的机器上整组跳过。
-@Suite("集成测试（需要真实 tart）", .enabled(if: TartAvailability.isInstalled))
+@Suite("集成测试（需要真实 tart）", .enabled(if: LiveTartRuntime.isInstalled))
 struct IntegrationTests {
   private func makeClient() throws -> TartClient {
-    try TartClient()
+    try LiveTartRuntime.makeClient()
   }
 
   @Test("能定位到 tart 并读出版本号")
@@ -86,8 +86,3 @@ struct IntegrationTests {
   }
 }
 
-enum TartAvailability {
-  static var isInstalled: Bool {
-    (try? TartLocator().locate()) != nil
-  }
-}
