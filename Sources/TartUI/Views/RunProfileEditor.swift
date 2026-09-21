@@ -29,10 +29,6 @@ struct RunProfileEditor: View {
         launchSection
         networkSection
         sharingSection
-
-        if hasLegacyAdvancedOptions {
-          legacyAdvancedSection
-        }
       }
       .formStyle(.grouped)
 
@@ -217,21 +213,6 @@ struct RunProfileEditor: View {
     }
   }
 
-  private var legacyAdvancedSection: some View {
-    Section(L10n.text("Legacy Advanced Options")) {
-      Label(
-        L10n.text("This profile contains advanced options from an earlier TartUI version. They are preserved and remain visible in the command preview."),
-        systemImage: "clock.arrow.circlepath"
-      )
-      .font(.caption)
-      .foregroundStyle(.secondary)
-
-      Button(L10n.text("Remove Legacy Advanced Options")) {
-        clearLegacyAdvancedOptions()
-      }
-    }
-  }
-
   // MARK: - Bindings
 
   private enum DisplayMode: Hashable {
@@ -250,11 +231,6 @@ struct RunProfileEditor: View {
       set: { mode in
         profile.noGraphics = mode == .headless
         profile.vnc = mode == .screenSharing
-
-        // The simplified editor intentionally chooses one display path. If the
-        // user changes this control, an older experimental VNC setting no longer
-        // shadows the visible choice.
-        profile.vncExperimental = false
       }
     )
   }
@@ -400,37 +376,6 @@ struct RunProfileEditor: View {
     }
   }
 
-  // MARK: - Compatibility
-
-  private var hasLegacyAdvancedOptions: Bool {
-    profile.vncExperimental
-      || profile.captureSystemKeys
-      || profile.noTrackpad
-      || profile.noPointer
-      || profile.noKeyboard
-      || profile.noAudio
-      || profile.nested
-      || profile.serial
-      || !(profile.serialPath?.isEmpty ?? true)
-      || !profile.disks.isEmpty
-      || !(profile.rootDiskOptions?.isEmpty ?? true)
-      || !(profile.rosettaTag?.isEmpty ?? true)
-  }
-
-  private func clearLegacyAdvancedOptions() {
-    profile.vncExperimental = false
-    profile.captureSystemKeys = false
-    profile.noTrackpad = false
-    profile.noPointer = false
-    profile.noKeyboard = false
-    profile.noAudio = false
-    profile.nested = false
-    profile.serial = false
-    profile.serialPath = nil
-    profile.disks = []
-    profile.rootDiskOptions = nil
-    profile.rosettaTag = nil
-  }
 }
 
 /// Shared CLI transparency surface used before and after execution.
