@@ -126,23 +126,11 @@ struct NetworkModeTests {
     #expect(profile.arguments(vmName: "vm").contains("--net-host"))
   }
 
-  @Test("Softnet 及其子选项")
-  func softnetWithOptions() {
-    let profile = RunProfile(network: .softnet(SoftnetOptions(
-      allowedCIDRs: ["192.168.0.0/24", "10.0.0.0/16"],
-      blockedCIDRs: ["66.66.0.0/16"],
-      exposedPorts: [
-        PortForward(hostPort: 2222, guestPort: 22),
-        PortForward(hostPort: 8080, guestPort: 80),
-      ]
-    )))
+  @Test("Softnet 只使用当前可见的默认模式")
+  func softnetUsesDefaults() {
+    let profile = RunProfile(network: .softnet)
 
-    let arguments = profile.arguments(vmName: "vm")
-
-    #expect(arguments.contains("--net-softnet"))
-    #expect(arguments.contains("--net-softnet-allow=192.168.0.0/24,10.0.0.0/16"))
-    #expect(arguments.contains("--net-softnet-block=66.66.0.0/16"))
-    #expect(arguments.contains("--net-softnet-expose=2222:22,8080:80"))
+    #expect(profile.arguments(vmName: "vm") == ["run", "vm", "--net-softnet"])
   }
 
   @Test("网络模式互斥：多张桥接网卡仍然只属于一种网络模式")
@@ -151,7 +139,7 @@ struct NetworkModeTests {
       .shared,
       .bridged(interfaces: ["en0", "en5"]),
       .hostOnly,
-      .softnet(SoftnetOptions()),
+      .softnet,
     ]
 
     for mode in modes {
@@ -190,6 +178,16 @@ struct NetworkModeTests {
     #expect(mode == .bridged(interfaces: ["en0"]))
   }
 
+  @Test("旧版 Softnet 高级规则会被读取但不再执行")
+  func legacySoftnetOptionsAreDropped() throws {
+    let data = Data(#"{"softnet":{"_0":{"allowedCIDRs":["0.0.0.0/0"],"blockedCIDRs":[],"exposedPorts":[]}}}"#.utf8)
+
+    let mode = try JSONDecoder().decode(NetworkMode.self, from: data)
+
+    #expect(mode == .softnet)
+    #expect(RunProfile(network: mode).arguments(vmName: "vm") == ["run", "vm", "--net-softnet"])
+  }
+
   @Test("多桥接网卡 JSON 可以往返")
   func multipleBridgeInterfacesRoundTrip() throws {
     let original = NetworkMode.bridged(interfaces: ["en0", "en5"])
@@ -211,32 +209,11 @@ struct RunProfileValidationTests {
     #expect(profile.validate().contains { !$0.isBlocking })
   }
 
-  @Test("端口越界属于阻断性错误")
-  func invalidPortIsBlocking() {
-    let profile = RunProfile(network: .softnet(SoftnetOptions(
-      allowedCIDRs: ["0.0.0.0/0"],
-      exposedPorts: [PortForward(hostPort: 70000, guestPort: 22)]
-    )))
-
-    #expect(profile.hasBlockingIssues)
-  }
-
   @Test("默认配置没有任何告警")
   func defaultProfileIsClean() {
     #expect(RunProfile().validate().isEmpty)
   }
 
-  @Test("端口转发但未放行网段会给出提醒")
-  func portForwardWithoutAllowWarns() {
-    let profile = RunProfile(network: .softnet(SoftnetOptions(
-      exposedPorts: [PortForward(hostPort: 2222, guestPort: 22)]
-    )))
-
-    let warnings = profile.validate()
-
-    #expect(warnings.contains { !$0.isBlocking })
-    #expect(!profile.hasBlockingIssues)
-  }
 }
 
 @Suite("Profile 存储")
@@ -265,7 +242,7 @@ struct RunProfileStoreTests {
     let profile = RunProfile(
       name: "无图形测试",
       noGraphics: true,
-      network: .softnet(SoftnetOptions(exposedPorts: [PortForward(hostPort: 2222, guestPort: 22)]))
+      network: .softnet
     )
     collection.upsert(profile, for: "sequoia")
     try store.save(collection)
@@ -276,8 +253,7 @@ struct RunProfileStoreTests {
     #expect(restored.count == 1)
     #expect(restored[0].name == "无图形测试")
     #expect(restored[0].noGraphics)
-    // 带关联值的枚举也要能正确往返。
-    #expect(restored[0].arguments(vmName: "sequoia").contains("--net-softnet-expose=2222:22"))
+    #expect(restored[0].arguments(vmName: "sequoia") == ["run", "sequoia", "--no-graphics", "--net-softnet"])
   }
 
   @Test("同 ID 的 profile 是更新而非追加")
