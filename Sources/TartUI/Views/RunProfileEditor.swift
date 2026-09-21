@@ -191,7 +191,7 @@ struct RunProfileEditor: View {
 
       case .softnet:
         Label(
-          L10n.text("Softnet uses Tart defaults. Existing allow, block, and port-forward rules are preserved in the command preview."),
+          L10n.text("Softnet uses Tart defaults."),
           systemImage: "info.circle"
         )
         .font(.caption)
@@ -263,7 +263,7 @@ struct RunProfileEditor: View {
           profile.network = .bridged(interfaces: [])
         case .softnet:
           if case .softnet = profile.network { return }
-          profile.network = .softnet(SoftnetOptions())
+          profile.network = .softnet
         }
       }
     )
