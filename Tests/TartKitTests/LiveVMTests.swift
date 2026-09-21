@@ -25,7 +25,7 @@ struct LiveVMTests {
   @Test("无图形模式下启动、观察输出、再优雅关机")
   func startObserveAndStop() async throws {
     let vmName = try #require(LiveVMConfig.vmName)
-    let client = try TartClient()
+    let client = try LiveTartRuntime.makeClient()
 
     // 前置检查：必须从已停止状态开始，避免动到正在使用的虚拟机。
     let before = try await client.list(source: .local)
