@@ -18,6 +18,7 @@ The main workflow is intentionally small:
 - edit common VM configuration;
 - cache OCI images with `tart pull`;
 - log in to or out of OCI registries;
+- keep one visible launch-settings value per VM, including display, suspend, sharing and network mode;
 - import Tart VM exports, prune disk usage and look up a VM IP address.
 
 Every user-triggered Tart operation keeps the CLI visible. TartUI shows the command before execution and records its state, exit code, stdout and stderr afterwards.
@@ -82,7 +83,7 @@ TartUI keeps the runtime source explicit and stable. You can choose:
 
 Once selected, TartUI stays on that source instead of silently switching when another Tart installation appears later.
 
-Existing users are migrated once from the previous automatic behavior: a saved custom path is preserved first, otherwise the currently discoverable system Tart is preserved, then an existing managed runtime. A fresh setup with no Tart defaults to Application Managed.
+Fresh installations default to **Application Managed**. System Tart and Custom Path are explicit choices; TartUI does not silently switch runtime sources.
 
 Managed Tart runtimes are stored under:
 
@@ -132,11 +133,15 @@ Developer ID releases use Hardened Runtime, are notarized with Apple and have th
 
 See [RELEASING.md](RELEASING.md) for the required GitHub Secrets and the local/manual release procedure.
 
-## Data
+## Launch settings and data
 
-Run Profiles are stored at:
+Each local VM has one TartUI launch-settings value. The settings map directly to the visible `tart run` controls and the command preview; there is no separate profile manager.
 
-    ~/Library/Application Support/TartUI/run-profiles.json
+For IP lookup, TartUI uses Tart's DHCP resolver for Shared, Host Only and Softnet networking, and automatically uses the ARP resolver for Bridged networking. The exact `tart ip ...` command is shown in the VM detail view before execution.
+
+Launch settings are stored at:
+
+    ~/Library/Application Support/TartUI/run-settings.json
 
 TartUI does not move or rewrite Tart's own VM storage.
 
