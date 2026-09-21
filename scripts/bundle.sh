@@ -9,7 +9,7 @@ set -euo pipefail
 CONFIG="${1:-debug}"
 APP_NAME="TartUI"
 BUNDLE_ID="com.tartui.app"
-VERSION="${TARTUI_VERSION:-0.1.0}"
+VERSION="${TARTUI_VERSION:-0.1.1}"
 BUILD_NUMBER="${TARTUI_BUILD_NUMBER:-$VERSION}"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
