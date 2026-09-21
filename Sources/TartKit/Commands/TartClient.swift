@@ -85,12 +85,12 @@ public struct TartClient: Sendable {
   /// `tart run` 是长驻前台进程：它不会「启动完就返回」，而是一直运行到虚拟机关闭。
   /// 所以这里给的是流，调用方需要持有它直到结束，
   /// 释放流会连带终止子进程（见 `TartExecutor.stream`）。
-  public func runAction(name: String, profile: RunProfile) -> CommandAction {
-    CommandAction(arguments: profile.arguments(vmName: name))
+  public func runAction(name: String, settings: RunSettings) -> CommandAction {
+    CommandAction(arguments: settings.arguments(vmName: name))
   }
 
-  public func runVM(name: String, profile: RunProfile) -> AsyncThrowingStream<CommandEvent, any Error> {
-    stream(runAction(name: name, profile: profile))
+  public func runVM(name: String, settings: RunSettings) -> AsyncThrowingStream<CommandEvent, any Error> {
+    stream(runAction(name: name, settings: settings))
   }
 
   /// 优雅关闭虚拟机。
