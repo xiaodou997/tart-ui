@@ -143,9 +143,11 @@ extension RunProfile {
     case .shared:
       return []
 
-    case let .bridged(interface):
-      guard !interface.isEmpty else { return [] }
-      return ["--net-bridged=\(interface)"]
+    case let .bridged(interfaces):
+      return interfaces
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .filter { !$0.isEmpty }
+        .map { "--net-bridged=\($0)" }
 
     case .hostOnly:
       return ["--net-host"]
@@ -205,6 +207,27 @@ extension RunProfile {
         message: "The VM cannot be suspended in recovery mode.",
         isBlocking: false
       ))
+    }
+
+    if case let .bridged(interfaces) = network {
+      let normalized = interfaces.map {
+        $0.trimmingCharacters(in: .whitespacesAndNewlines)
+      }
+
+      if normalized.isEmpty || normalized.contains(where: \.isEmpty) {
+        warnings.append(Warning(
+          message: "Select at least one bridged network adapter.",
+          isBlocking: true
+        ))
+      }
+
+      let nonEmpty = normalized.filter { !$0.isEmpty }
+      if Set(nonEmpty).count != nonEmpty.count {
+        warnings.append(Warning(
+          message: "Each bridged network adapter can only be added once.",
+          isBlocking: true
+        ))
+      }
     }
 
     if case let .softnet(options) = network {
