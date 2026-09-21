@@ -17,6 +17,7 @@ struct CloneImageSheet: View {
 
   @State private var reference = ""
   @State private var newName = ""
+  @State private var lastSuggestedName: String?
   @State private var insecure = false
   @State private var showAdvanced = false
 
@@ -123,19 +124,46 @@ struct CloneImageSheet: View {
   }
 
   private func imageReferenceButton(_ item: String) -> some View {
-    Button {
-      reference = item
-      if newName.isEmpty {
-        newName = suggestedName(from: item)
-      }
+    let isSelected = reference == item
+
+    return Button {
+      selectImageReference(item)
     } label: {
-      Text(item)
-        .font(.system(.caption, design: .monospaced))
-        .lineLimit(1)
-        .truncationMode(.middle)
-        .frame(maxWidth: .infinity, alignment: .leading)
+      HStack(spacing: 10) {
+        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+          .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+          .imageScale(.medium)
+
+        Text(item)
+          .font(.system(.caption, design: .monospaced))
+          .lineLimit(1)
+          .truncationMode(.middle)
+
+        Spacer(minLength: 0)
+      }
+      .padding(.horizontal, 8)
+      .padding(.vertical, 7)
+      .contentShape(.rect)
+      .background(
+        isSelected ? Color.accentColor.opacity(0.12) : Color.clear,
+        in: .rect(cornerRadius: 9)
+      )
     }
     .buttonStyle(.plain)
+  }
+
+  private func selectImageReference(_ item: String) {
+    let previousSuggestedName = lastSuggestedName
+    let suggestion = suggestedName(from: item)
+
+    reference = item
+
+    if newName.isEmpty || newName == previousSuggestedName {
+      newName = suggestion
+      lastSuggestedName = suggestion
+    } else {
+      lastSuggestedName = nil
+    }
   }
 
   private func suggestedName(from source: String) -> String {
@@ -183,16 +211,7 @@ struct PullImageSheet: View {
 
         Section(L10n.text("Suggested Images")) {
           ForEach(commonImageReferences, id: \.self) { item in
-            Button {
-              reference = item
-            } label: {
-              Text(item)
-                .font(.system(.caption, design: .monospaced))
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .buttonStyle(.plain)
+            suggestedImageButton(item)
           }
         }
 
@@ -225,6 +244,35 @@ struct PullImageSheet: View {
       .padding()
     }
     .frame(width: 540, height: 470)
+  }
+
+  private func suggestedImageButton(_ item: String) -> some View {
+    let isSelected = reference == item
+
+    return Button {
+      reference = item
+    } label: {
+      HStack(spacing: 10) {
+        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+          .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+          .imageScale(.medium)
+
+        Text(item)
+          .font(.system(.caption, design: .monospaced))
+          .lineLimit(1)
+          .truncationMode(.middle)
+
+        Spacer(minLength: 0)
+      }
+      .padding(.horizontal, 8)
+      .padding(.vertical, 7)
+      .contentShape(.rect)
+      .background(
+        isSelected ? Color.accentColor.opacity(0.12) : Color.clear,
+        in: .rect(cornerRadius: 9)
+      )
+    }
+    .buttonStyle(.plain)
   }
 
   private var pullArguments: [String] {
