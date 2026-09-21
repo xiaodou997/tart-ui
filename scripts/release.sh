@@ -9,14 +9,14 @@
 #   - TARTUI_NOTARY_PROFILE set to that profile name.
 #
 # Usage:
-#   TARTUI_VERSION=0.1.0 TARTUI_NOTARY_PROFILE=tartui ./scripts/release.sh
+#   TARTUI_VERSION=0.1.1 TARTUI_NOTARY_PROFILE=tartui ./scripts/release.sh
 
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-VERSION="${TARTUI_VERSION:-0.1.0}"
+VERSION="${TARTUI_VERSION:-0.1.1}"
 BUILD_NUMBER="${TARTUI_BUILD_NUMBER:-$VERSION}"
 NOTARY_PROFILE="${TARTUI_NOTARY_PROFILE:-}"
 
