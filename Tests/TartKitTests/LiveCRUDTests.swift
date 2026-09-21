@@ -17,7 +17,7 @@ import Testing
 struct LiveCRUDTests {
   @Test("创建空白 Linux 虚拟机，改配置、重命名，最后删除")
   func fullLifecycle() async throws {
-    let client = try TartClient()
+    let client = try LiveTartRuntime.makeClient()
     let suffix = UUID().uuidString.prefix(8).lowercased()
     let originalName = "tartui-test-\(suffix)"
     let renamedName = "tartui-test-renamed-\(suffix)"
