@@ -51,15 +51,10 @@ final class VMStore {
   // MARK: - Bootstrap
 
   /// Resolves exactly the runtime source selected by the user.
-  ///
-  /// Existing installations are migrated once from the old automatic behavior:
-  /// a saved custom path wins, otherwise a currently installed system Tart is
-  /// preserved, then an existing managed runtime, and finally managed becomes
-  /// the default for first-time setup.
   func bootstrap() async {
     let locator = TartLocator()
     let defaults = UserDefaults.standard
-    let preference = migratedRuntimePreference(locator: locator, defaults: defaults)
+    let preference = TartLocator.storedRuntimePreference(defaults: defaults) ?? .managed
     runtimePreference = preference
 
     do {
@@ -217,29 +212,6 @@ final class VMStore {
     } catch {
       return recordRuntimeSelectionError(error)
     }
-  }
-
-  private func migratedRuntimePreference(
-    locator: TartLocator,
-    defaults: UserDefaults
-  ) -> TartRuntimePreference {
-    if let stored = TartLocator.storedRuntimePreference(defaults: defaults) {
-      return stored
-    }
-
-    let preference: TartRuntimePreference
-    if TartLocator.storedUserOverride(defaults: defaults) != nil {
-      preference = .custom
-    } else if (try? locator.resolve(preference: .system)) != nil {
-      preference = .system
-    } else if (try? locator.resolve(preference: .managed)) != nil {
-      preference = .managed
-    } else {
-      preference = .managed
-    }
-
-    TartLocator.saveRuntimePreference(preference, defaults: defaults)
-    return preference
   }
 
   private func recordRuntimeSelectionError(_ error: any Error) -> String {
