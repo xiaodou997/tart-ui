@@ -228,71 +228,9 @@ struct ErrorHandlingTests {
 
 @Suite("二进制定位")
 struct LocatorTests {
-  @Test("找不到任何候选时报告已查找的路径")
-  func reportsSearchedPaths() {
-    // PATH 置空，模拟从 Finder 启动的 .app —— 那种环境下确实拿不到 Homebrew 目录。
-    let locator = TartLocator(searchPaths: ["/nonexistent/tart"], pathEnvironment: nil)
-
-    do {
-      _ = try locator.locate()
-      Issue.record("本应抛出错误")
-    } catch let error as TartError {
-      guard case let .binaryNotFound(searched) = error else {
-        Issue.record("期望 binaryNotFound，实际是 \(error)")
-        return
-      }
-      #expect(searched.contains("/nonexistent/tart"))
-    } catch {
-      Issue.record("意外错误 \(error)")
-    }
-  }
-
-  @Test("用户指定路径无效时直接报错，不静默回退")
-  func userOverrideDoesNotFallBack() {
-    // 即使默认路径上有可用的 tart，用户明确指定的错误路径也必须报错，
-    // 否则用户会以为自己的设置生效了。
-    let locator = TartLocator(
-      searchPaths: TartLocator.defaultSearchPaths,
-      fileExists: { _ in true },
-      isExecutableFile: { $0 != "/definitely/not/here/tart" }
-    )
-
-    #expect(throws: TartError.self) {
-      _ = try locator.locate(userOverride: "/definitely/not/here/tart")
-    }
-  }
-
   @Test("Apple Silicon 默认只探测 Homebrew 的标准路径")
   func defaultSearchPathIsAppleSiliconHomebrew() {
     #expect(TartLocator.defaultSearchPaths == ["/opt/homebrew/bin/tart"])
-  }
-
-  @Test("系统安装优先于 TartUI 托管运行时")
-  func systemInstallBeatsManagedRuntime() throws {
-    let locator = TartLocator(
-      searchPaths: ["/system/tart"],
-      pathEnvironment: nil,
-      isExecutableFile: { $0 == "/system/tart" || $0 == "/managed/tart" },
-      managedPaths: ["/managed/tart"]
-    )
-
-    let runtime = try locator.resolve()
-    #expect(runtime.binaryURL.path == "/system/tart")
-    #expect(runtime.source == .system)
-  }
-
-  @Test("系统和 PATH 都没有时回退到托管运行时")
-  func managedRuntimeIsFallback() throws {
-    let locator = TartLocator(
-      searchPaths: ["/system/tart"],
-      pathEnvironment: "/usr/bin:/custom/tools",
-      isExecutableFile: { $0 == "/managed/tart" },
-      managedPaths: ["/managed/tart"]
-    )
-
-    let runtime = try locator.resolve()
-    #expect(runtime.binaryURL.path == "/managed/tart")
-    #expect(runtime.source == .managed)
   }
 
   @Test("显式选择系统 Tart 时不会回退到托管运行时")
@@ -307,6 +245,20 @@ struct LocatorTests {
     #expect(throws: TartError.self) {
       _ = try locator.resolve(preference: .system)
     }
+  }
+
+  @Test("系统来源会检查 PATH")
+  func systemSelectionUsesPathEnvironment() throws {
+    let locator = TartLocator(
+      searchPaths: ["/opt/homebrew/bin/tart"],
+      pathEnvironment: "/usr/bin:/custom/tools",
+      isExecutableFile: { $0 == "/custom/tools/tart" },
+      managedPaths: []
+    )
+
+    let runtime = try locator.resolve(preference: .system)
+    #expect(runtime.binaryURL.path == "/custom/tools/tart")
+    #expect(runtime.source == .system)
   }
 
   @Test("显式选择托管 Tart 时不会被系统安装替换")
@@ -338,30 +290,33 @@ struct LocatorTests {
     #expect(runtime.source == .userOverride)
   }
 
-  @Test("已知位置都落空时回退到 PATH")
-  func fallsBackToPathEnvironment() throws {
-    // 从终端启动时走这条路径。
+  @Test("自定义路径无效时不会静默回退")
+  func invalidCustomPathDoesNotFallBack() {
     let locator = TartLocator(
-      searchPaths: ["/opt/homebrew/bin/tart"],
-      pathEnvironment: "/usr/bin:/custom/tools",
-      isExecutableFile: { $0 == "/custom/tools/tart" }
+      searchPaths: ["/system/tart"],
+      pathEnvironment: nil,
+      fileExists: { _ in false },
+      isExecutableFile: { $0 == "/system/tart" },
+      managedPaths: []
     )
 
-    #expect(try locator.locate().path == "/custom/tools/tart")
+    #expect(throws: TartError.self) {
+      _ = try locator.resolve(preference: .custom, customPath: "/definitely/not/here/tart")
+    }
   }
 
-  @Test("指定路径存在但不可执行时给出针对性错误")
-  func reportsNonExecutable() {
+  @Test("自定义路径存在但不可执行时给出针对性错误")
+  func reportsNonExecutableCustomPath() {
     let locator = TartLocator(
       fileExists: { _ in true },
-      isExecutableFile: { _ in false }
+      isExecutableFile: { _ in false },
+      managedPaths: []
     )
 
     do {
-      _ = try locator.locate(userOverride: "/some/where/tart")
+      _ = try locator.resolve(preference: .custom, customPath: "/some/where/tart")
       Issue.record("本应抛出错误")
     } catch let error as TartError {
-      // 「找不到」和「不可执行」要分开报，处理办法完全不同（一个是装，一个是 chmod）。
       guard case .binaryNotExecutable = error else {
         Issue.record("期望 binaryNotExecutable，实际是 \(error)")
         return

@@ -124,32 +124,13 @@
 "Login succeeded." = "登录成功。";
 "Logged out." = "已注销。";
 "Profile Name" = "配置名称";
-"Display and Input" = "显示与输入";
-"No Graphics Window" = "不打开图形窗口";
-"Useful when accessing the VM only through SSH or VNC" = "适合只通过 SSH 或 VNC 访问的场景";
-"Use Screen Sharing" = "使用屏幕共享";
-"Remote Login must be enabled inside the VM" = "需要在虚拟机内开启远程登录";
-"Use Experimental VNC" = "使用实验性 VNC";
-"Available in recovery mode and during installation, but marked experimental by the upstream project" = "恢复模式和系统安装过程中也可用，但上游项目标注为实验性";
-"Send System Shortcuts to VM" = "系统快捷键发送给虚拟机";
-"When enabled, shortcuts such as Cmd+Tab are received by the VM instead of the host" = "启用后 Cmd+Tab 等快捷键会被虚拟机接收，而不是宿主机";
-"Disable Trackpad" = "禁用触控板";
-"Disable Pointer" = "禁用指针";
-"Disable Keyboard" = "禁用键盘";
-"Devices" = "设备";
-"Disable Audio" = "禁用音频";
 "Disable Clipboard Sharing" = "禁用剪贴板共享";
-"Suspendable" = "可挂起";
-"Disables audio and entropy devices and uses Mac-specific input devices. Only VMs started this way can be suspended" = "关闭音频和熵设备，换用 Mac 专用输入设备。只有这样启动的虚拟机才能被挂起";
-"Enable Nested Virtualization" = "启用嵌套虚拟化";
 "Boot into Recovery Mode" = "进入恢复模式";
 "Network" = "网络";
 "Network Mode" = "网络模式";
 "Shared (NAT)" = "共享（NAT）";
 "Bridged" = "桥接";
 "Host Only" = "仅宿主机";
-"Interface" = "接口名";
-"e.g. en0 or Wi-Fi" = "如 en0 或 Wi-Fi";
 "Network Adapters" = "网络适配器";
 "Bridged networking connects the VM directly to one or more host network interfaces." = "桥接网络会把虚拟机直接连接到一张或多张宿主机网络接口。";
 "Refresh Network Interfaces" = "刷新网络接口";
@@ -160,26 +141,8 @@
 "%@ (Unavailable)" = "%@（不可用）";
 "Select at least one bridged network adapter." = "桥接模式至少需要选择一张网络适配器。";
 "Each bridged network adapter can only be added once." = "同一张桥接网络适配器只能添加一次。";
-"Allowed Networks" = "放行网段";
-"Comma-separated, e.g. 192.168.0.0/24" = "逗号分隔，如 192.168.0.0/24";
-"Blocked Networks" = "阻止网段";
-"Comma-separated" = "逗号分隔";
-"Port Forwards" = "端口转发";
-"e.g. 2222:22,8080:80" = "如 2222:22,8080:80";
-"Format: host-port:guest-port; separate multiple entries with commas" = "格式为宿主机端口:虚拟机端口，多条用逗号分隔";
-"Storage and Sharing" = "存储与共享";
-"Attached Disks" = "附加磁盘";
-"path[:options], e.g. /tmp/data.img:ro" = "路径[:选项]，如 /tmp/data.img:ro";
 "Directory Shares" = "目录共享";
 "[name:]path[:options], e.g. ~/src:ro" = "[名称:]路径[:选项]，如 ~/src:ro";
-"Advanced" = "高级";
-"Root Disk Options" = "根磁盘选项";
-"e.g. ro or caching=cached,sync=none" = "如 ro 或 caching=cached,sync=none";
-"Rosetta Tag" = "Rosetta 标签";
-"Only applies to Linux guests" = "仅对 Linux 客户机有效";
-"Open Serial Console" = "打开串口控制台";
-"External Serial Path" = "外部串口路径";
-"e.g. /dev/ttys001" = "如 /dev/ttys001";
 "Edit Configuration" = "修改配置";
 "The VM is running. Configuration changes take effect after shutdown." = "虚拟机正在运行，配置修改需要关机后才会生效。";
 "CPU and Memory" = "处理器与内存";
@@ -254,12 +217,8 @@
 "Process exited with code %@" = "进程退出，退出码 %@";
 "Start failed: %@" = "启动失败：%@";
 "Bridged networking requires Apple's restricted VM networking entitlement. Choose Shared (NAT), or request it from Apple." = "桥接网络需要 Apple 授予的受限 VM 网络权限。请改用共享（NAT），或向 Apple 申请该权限。";
-"Screen Sharing and Experimental VNC cannot be enabled together. Choose one." = "屏幕共享和实验性 VNC 不能同时启用，请只选一种。";
 "The graphics window is disabled and no VNC mode is enabled; the VM will only be accessible through SSH." = "已关闭图形窗口且未启用 VNC，将无法看到虚拟机画面，只能通过 SSH 访问。";
-"Suspendable already disables audio; disabling audio separately is unnecessary." = "可挂起本身就会关闭音频设备，无需再单独关闭音频。";
 "The VM cannot be suspended in recovery mode." = "恢复模式下无法挂起虚拟机。";
-"Port forwarding is configured without allowed networks; Softnet's default restrictions may block external connections." = "配置了端口转发但未放行任何网段，Softnet 的默认限制可能导致外部无法连接。";
-"Open Serial Console and External Serial Path are alternative modes; enabling both may not work as expected." = "打开串口控制台与附加外部串口是两种方式，同时设置可能不生效。";
 
 "Tart Required" = "需要安装 Tart";
 "TartUI is a graphical interface for Tart. Install the official runtime or choose an existing Tart executable to continue." = "TartUI 是 Tart 的图形界面。请安装官方 Tart，或选择电脑上已有的 tart 可执行文件后继续。";
@@ -286,15 +245,12 @@
 
 /* Simplified Run Profile */
 "Launch" = "启动";
+"Softnet uses Tart defaults." = "Softnet 使用 Tart 默认设置。";
 "Window" = "窗口";
 "Headless" = "无图形界面";
 "Screen Sharing" = "屏幕共享";
 "Allow Suspend" = "允许挂起";
 "Directory Sharing" = "目录共享";
-"Softnet uses Tart defaults. Existing allow, block, and port-forward rules are preserved in the command preview." = "Softnet 使用 Tart 默认设置。旧配置中的放行、阻止和端口转发规则会继续保留，并显示在下方命令预览中。";
-"Legacy Advanced Options" = "旧版高级选项";
-"This profile contains advanced options from an earlier TartUI version. They are preserved and remain visible in the command preview." = "此配置包含旧版 TartUI 的高级选项。这些参数会继续保留，并显示在下方命令预览中。";
-"Remove Legacy Advanced Options" = "移除旧版高级选项";
 
 /* Simplified VM Detail */
 "OCI Image Cache" = "OCI 镜像缓存";

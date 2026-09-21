@@ -86,41 +86,6 @@ public struct TartLocator: Sendable {
     defaults.set(preference.rawValue, forKey: runtimePreferenceDefaultsKey)
   }
 
-  /// Legacy automatic resolution used by TartKit clients outside TartUI.
-  ///
-  /// Resolution order:
-  /// explicit user path -> known system installs -> PATH -> TartUI-managed fallback.
-  public func resolve(userOverride: String? = nil) throws -> TartRuntime {
-    if let userOverride, !userOverride.isEmpty {
-      return TartRuntime(binaryURL: try validate(path: userOverride), source: .userOverride)
-    }
-
-    var searched: [String] = []
-
-    for path in searchPaths {
-      searched.append(path)
-      if isExecutable(at: path) {
-        return TartRuntime(binaryURL: URL(fileURLWithPath: path), source: .system)
-      }
-    }
-
-    for path in pathsFromEnvironment() {
-      searched.append(path)
-      if isExecutable(at: path) {
-        return TartRuntime(binaryURL: URL(fileURLWithPath: path), source: .system)
-      }
-    }
-
-    for path in managedPaths {
-      searched.append(path)
-      if isExecutable(at: path) {
-        return TartRuntime(binaryURL: URL(fileURLWithPath: path), source: .managed)
-      }
-    }
-
-    throw TartError.binaryNotFound(searchedPaths: searched)
-  }
-
   /// Resolves only the source selected by the user.
   ///
   /// Unlike automatic resolution, this never crosses source boundaries. Choosing
@@ -170,10 +135,6 @@ public struct TartLocator: Sendable {
 
       return TartRuntime(binaryURL: try validate(path: normalized), source: .userOverride)
     }
-  }
-
-  public func locate(userOverride: String? = nil) throws -> URL {
-    try resolve(userOverride: userOverride).binaryURL
   }
 
   public static func defaultManagedSearchPaths(
