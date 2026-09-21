@@ -344,3 +344,24 @@
 "Development" = "开发版本";
 
 "ASIF (Faster)" = "ASIF（更快）";
+/* Explicit Tart runtime source */
+"Tart CLI" = "Tart CLI";
+"TartUI uses the official Tart CLI to create and run virtual machines." = "TartUI 使用官方 Tart CLI 来创建和运行虚拟机。";
+"Application Managed" = "应用管理";
+"Custom Path" = "自定义路径";
+"Custom Path…" = "自定义路径…";
+"Path" = "路径";
+"Show in Finder" = "在 Finder 中显示";
+"A newer official Tart release is available. Update this Tart with the method that manages it." = "发现较新的官方 Tart 版本。请使用管理当前 Tart 的方式进行更新。";
+"Choose Another…" = "选择其他…";
+"TartUI downloads and manages the official Tart release in Application Support, including updates and rollback." = "TartUI 会在 Application Support 中下载并管理官方 Tart，负责更新和版本回退。";
+"Uses Tart installed by Homebrew or available on PATH. TartUI will not modify the system installation." = "使用 Homebrew 安装或 PATH 中可用的 Tart。TartUI 不会修改系统安装。";
+"Uses exactly the Tart executable you choose. TartUI validates the path before saving it." = "只使用你指定的 Tart 可执行文件，路径验证通过后才会保存。";
+"Detect System Tart" = "检测系统 Tart";
+"Choose Custom Tart…" = "选择自定义 Tart…";
+"Choose a custom Tart executable first." = "请先选择一个自定义 Tart 可执行文件。";
+"TartUI needs the official Tart CLI to create and run virtual machines. Choose how Tart should be provided." = "TartUI 需要官方 Tart CLI 才能创建和运行虚拟机。请选择 Tart 的提供方式。";
+"TartUI downloads the official release into Application Support and manages updates and rollback." = "TartUI 会把官方正式版下载到 Application Support，并负责更新和版本回退。";
+"Use Application Managed" = "使用应用管理";
+"Use Tart already installed by Homebrew or available on PATH. TartUI will not modify it." = "使用 Homebrew 已安装或 PATH 中已有的 Tart，TartUI 不会修改它。";
+"Application Managed Tart is downloaded from official GitHub releases, verified, and stored in your user Application Support folder." = "应用管理的 Tart 来自官方 GitHub Release，经过校验后保存在当前用户的 Application Support 目录。";
