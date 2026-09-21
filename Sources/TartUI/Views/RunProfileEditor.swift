@@ -358,7 +358,6 @@ struct RunProfileEditor: View {
   private func refreshBridgeInterfaces() {
     availableBridgeInterfaces = BridgedNetworkInterfaceCatalog.available()
   }
-
 }
 
 /// Shared CLI transparency surface used before and after execution.
