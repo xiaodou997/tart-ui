@@ -4,18 +4,18 @@ import TartKit
 
 /// A focused editor for the launch options TartUI currently supports.
 ///
-/// RunProfile mirrors this visible surface so generated Tart commands remain
+/// RunSettings mirrors this visible surface so generated Tart commands remain
 /// predictable from the controls shown in the app.
-struct RunProfileEditor: View {
-  @State private var profile: RunProfile
+struct RunSettingsEditor: View {
+  @State private var settings: RunSettings
   @State private var availableBridgeInterfaces: [BridgedNetworkInterfaceInfo] = []
   let vmName: String
-  let onSave: (RunProfile) -> Void
+  let onSave: (RunSettings) -> Void
 
   @Environment(\.dismiss) private var dismiss
 
-  init(profile: RunProfile, vmName: String, onSave: @escaping (RunProfile) -> Void) {
-    self._profile = State(initialValue: profile)
+  init(settings: RunSettings, vmName: String, onSave: @escaping (RunSettings) -> Void) {
+    self._settings = State(initialValue: settings)
     self.vmName = vmName
     self.onSave = onSave
   }
@@ -44,8 +44,7 @@ struct RunProfileEditor: View {
   private var header: some View {
     HStack {
       VStack(alignment: .leading, spacing: 3) {
-        TextField(L10n.text("Profile Name"), text: $profile.name)
-          .textFieldStyle(.plain)
+        Text(L10n.text("Launch Settings"))
           .font(.headline)
 
         Text(vmName)
@@ -60,7 +59,7 @@ struct RunProfileEditor: View {
 
   private var footer: some View {
     VStack(spacing: 10) {
-      let warnings = profile.validate()
+      let warnings = settings.validate()
       if !warnings.isEmpty {
         VStack(alignment: .leading, spacing: 4) {
           ForEach(warnings) { warning in
@@ -78,7 +77,7 @@ struct RunProfileEditor: View {
         .frame(maxWidth: .infinity, alignment: .leading)
       }
 
-      CommandPreview(action: CommandAction(arguments: profile.arguments(vmName: vmName)))
+      CommandPreview(action: CommandAction(arguments: settings.arguments(vmName: vmName)))
 
       HStack {
         Spacer()
@@ -89,11 +88,11 @@ struct RunProfileEditor: View {
         .keyboardShortcut(.cancelAction)
 
         Button(L10n.text("Save")) {
-          onSave(profile)
+          onSave(settings)
           dismiss()
         }
         .keyboardShortcut(.defaultAction)
-        .disabled(profile.hasBlockingIssues || profile.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        .disabled(settings.hasBlockingIssues)
       }
     }
     .padding()
@@ -110,12 +109,12 @@ struct RunProfileEditor: View {
       }
       .pickerStyle(.segmented)
 
-      Toggle(L10n.text("Allow Suspend"), isOn: $profile.suspendable)
+      Toggle(L10n.text("Allow Suspend"), isOn: $settings.suspendable)
         .help(L10n.text("Only VMs started with Suspendable can be suspended"))
 
-      Toggle(L10n.text("Boot into Recovery Mode"), isOn: $profile.recovery)
+      Toggle(L10n.text("Boot into Recovery Mode"), isOn: $settings.recovery)
 
-      Toggle(L10n.text("Disable Clipboard Sharing"), isOn: $profile.noClipboard)
+      Toggle(L10n.text("Disable Clipboard Sharing"), isOn: $settings.noClipboard)
     }
   }
 
@@ -128,7 +127,7 @@ struct RunProfileEditor: View {
         Text("Softnet").tag(NetworkKind.softnet)
       }
 
-      switch profile.network {
+      switch settings.network {
       case .bridged:
         VStack(alignment: .leading, spacing: 10) {
           HStack {
@@ -207,7 +206,7 @@ struct RunProfileEditor: View {
     Section(L10n.text("Directory Sharing")) {
       ListEditor(
         title: L10n.text("Directory Shares"),
-        items: $profile.directoryShares,
+        items: $settings.directoryShares,
         prompt: L10n.text("[name:]path[:options], e.g. ~/src:ro")
       )
     }
@@ -224,13 +223,13 @@ struct RunProfileEditor: View {
   private var displayModeBinding: Binding<DisplayMode> {
     Binding(
       get: {
-        if profile.vnc { return .screenSharing }
-        if profile.noGraphics { return .headless }
+        if settings.vnc { return .screenSharing }
+        if settings.noGraphics { return .headless }
         return .window
       },
       set: { mode in
-        profile.noGraphics = mode == .headless
-        profile.vnc = mode == .screenSharing
+        settings.noGraphics = mode == .headless
+        settings.vnc = mode == .screenSharing
       }
     )
   }
@@ -245,7 +244,7 @@ struct RunProfileEditor: View {
   private var networkKindBinding: Binding<NetworkKind> {
     Binding(
       get: {
-        switch profile.network {
+        switch settings.network {
         case .shared: .shared
         case .bridged: .bridged
         case .hostOnly: .hostOnly
@@ -255,15 +254,15 @@ struct RunProfileEditor: View {
       set: { kind in
         switch kind {
         case .shared:
-          profile.network = .shared
+          settings.network = .shared
         case .hostOnly:
-          profile.network = .hostOnly
+          settings.network = .hostOnly
         case .bridged:
-          if case .bridged = profile.network { return }
-          profile.network = .bridged(interfaces: [])
+          if case .bridged = settings.network { return }
+          settings.network = .bridged(interfaces: [])
         case .softnet:
-          if case .softnet = profile.network { return }
-          profile.network = .softnet
+          if case .softnet = settings.network { return }
+          settings.network = .softnet
         }
       }
     )
@@ -277,7 +276,7 @@ struct RunProfileEditor: View {
   }
 
   private var bridgeInterfaceValues: [String] {
-    guard case let .bridged(interfaces) = profile.network else { return [] }
+    guard case let .bridged(interfaces) = settings.network else { return [] }
     return interfaces
   }
 
@@ -321,38 +320,38 @@ struct RunProfileEditor: View {
         return values.indices.contains(index) ? values[index] : ""
       },
       set: { newValue in
-        guard case var .bridged(interfaces) = profile.network,
+        guard case var .bridged(interfaces) = settings.network,
               interfaces.indices.contains(index)
         else {
           return
         }
 
         interfaces[index] = newValue
-        profile.network = .bridged(interfaces: interfaces)
+        settings.network = .bridged(interfaces: interfaces)
       }
     )
   }
 
   private func addBridgedInterface() {
     guard let next = firstUnusedBridgeInterface,
-          case var .bridged(interfaces) = profile.network
+          case var .bridged(interfaces) = settings.network
     else {
       return
     }
 
     interfaces.append(next.identifier)
-    profile.network = .bridged(interfaces: interfaces)
+    settings.network = .bridged(interfaces: interfaces)
   }
 
   private func removeBridgedInterface(at index: Int) {
-    guard case var .bridged(interfaces) = profile.network,
+    guard case var .bridged(interfaces) = settings.network,
           interfaces.indices.contains(index)
     else {
       return
     }
 
     interfaces.remove(at: index)
-    profile.network = .bridged(interfaces: interfaces)
+    settings.network = .bridged(interfaces: interfaces)
   }
 
   private func refreshBridgeInterfaces() {

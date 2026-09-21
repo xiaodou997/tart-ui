@@ -18,6 +18,7 @@ TartUI 是仅面向 Apple Silicon 的原生 macOS 应用，也是官方 [Tart](h
 - 修改常见 VM 配置；
 - 使用 `tart pull` 缓存 OCI 镜像；
 - 登录和注销 OCI Registry；
+- 每台虚拟机只保留一份可见的启动设置，包括显示、挂起、目录共享和网络模式；
 - 导入 Tart VM、清理磁盘空间、查询 VM IP。
 
 所有用户主动触发的 Tart 操作都会保持 CLI 透明：执行前展示命令，执行后保留状态、退出码、stdout 和 stderr。
@@ -82,7 +83,7 @@ TartUI 现在把 Tart 来源作为一个明确、稳定的用户选择：
 
 来源一旦选定就会保持稳定，不会因为之后安装了另一个 Tart 而在后台自动切换。
 
-老用户首次升级时会从旧的自动逻辑迁移一次：优先保留已经保存的自定义路径，否则保留当前能找到的系统 Tart，再其次使用已有的应用管理版本。全新环境如果没有任何 Tart，则默认进入“应用管理”。
+全新安装默认使用**应用管理**。系统 Tart 和自定义路径都由用户明确选择，TartUI 不会在后台自动切换运行时来源。
 
 应用管理的 Tart 位于：
 
@@ -132,11 +133,15 @@ TartUI 不会修改 Homebrew 或 shell 配置。
 
 所需 GitHub Secrets、打 tag 方法和本地手动发布流程见 [RELEASING.md](RELEASING.md)。
 
-## 数据
+## 启动设置与数据
 
-Run Profile 保存在：
+每台本地虚拟机只有一份 TartUI 启动设置。设置项直接对应界面中可见的 `tart run` 控件和命令预览，不再存在单独的 Profile 管理器。
 
-    ~/Library/Application Support/TartUI/run-profiles.json
+查询 IP 时，共享网络、仅宿主机和 Softnet 使用 Tart 的 DHCP resolver；桥接网络会自动使用 ARP resolver。VM 详情页会在执行前显示实际的 `tart ip ...` 命令。
+
+启动设置保存在：
+
+    ~/Library/Application Support/TartUI/run-settings.json
 
 TartUI 不会移动或改写 Tart 自己的虚拟机存储。
 

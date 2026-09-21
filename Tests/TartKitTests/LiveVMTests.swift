@@ -32,15 +32,15 @@ struct LiveVMTests {
     let target = try #require(before.first { $0.name == vmName }, "找不到虚拟机 \(vmName)")
     try #require(target.state == .stopped, "虚拟机 \(vmName) 当前状态是 \(target.state)，测试要求它处于已停止状态")
 
-    let profile = RunProfile(name: "自动化测试", noGraphics: true)
-    #expect(profile.arguments(vmName: vmName) == ["run", vmName, "--no-graphics"])
+    let settings = RunSettings(noGraphics: true)
+    #expect(settings.arguments(vmName: vmName) == ["run", vmName, "--no-graphics"])
 
     // 收集输出的容器。流在后台 Task 里消费，测试主体负责轮询状态。
     let collector = LineCollector()
 
     let streamTask = Task {
       do {
-        for try await event in client.runVM(name: vmName, profile: profile) {
+        for try await event in client.runVM(name: vmName, settings: settings) {
           switch event {
           case .started: break
           case let .stdout(line): await collector.append(line, isError: false)

@@ -7,8 +7,7 @@ struct VMDetailView: View {
 
   @State private var details: VMDetails?
   @State private var detailsError: String?
-  @State private var selectedProfileID: UUID?
-  @State private var isEditingProfile = false
+  @State private var isEditingRunSettings = false
   @State private var isStopping = false
   @State private var isEditingConfig = false
   @State private var isCloning = false
@@ -16,8 +15,8 @@ struct VMDetailView: View {
   @State private var ipAddress: String?
   @State private var isLookingUpIP = false
 
-  private var currentProfile: RunProfile {
-    store.profile(for: entry.name, id: selectedProfileID)
+  private var currentSettings: RunSettings {
+    store.launchSettings(for: entry.name)
   }
 
   var body: some View {
@@ -31,7 +30,7 @@ struct VMDetailView: View {
             runningCommandHint
           }
 
-          profileSection
+          launchSettingsSection
 
           if entry.isRunning {
             networkSection
@@ -53,13 +52,12 @@ struct VMDetailView: View {
         detailsError = nil
       }
     }
-    .sheet(isPresented: $isEditingProfile) {
-      RunProfileEditor(
-        profile: currentProfile,
+    .sheet(isPresented: $isEditingRunSettings) {
+      RunSettingsEditor(
+        settings: currentSettings,
         vmName: entry.name,
         onSave: { updated in
-          store.saveProfile(updated, for: entry.name)
-          selectedProfileID = updated.id
+          store.saveLaunchSettings(updated, for: entry.name)
         }
       )
     }
@@ -159,7 +157,7 @@ struct VMDetailView: View {
           .help(CommandAction(arguments: ["suspend", entry.name]).command)
         } else {
           Button {
-            store.start(vmName: entry.name, profile: currentProfile)
+            store.start(vmName: entry.name, settings: currentSettings)
           } label: {
             Label(
               entry.state == .suspended ? L10n.text("Resume") : L10n.text("Start"),
@@ -167,8 +165,8 @@ struct VMDetailView: View {
             )
           }
           .buttonStyle(.glassProminent)
-          .disabled(currentProfile.hasBlockingIssues)
-          .help(currentProfile.command(vmName: entry.name))
+          .disabled(currentSettings.hasBlockingIssues)
+          .help(currentSettings.command(vmName: entry.name))
         }
 
         Spacer()
@@ -233,7 +231,7 @@ struct VMDetailView: View {
         )
         .font(.callout.weight(.medium))
 
-        Text(L10n.text("Clone it to create a local VM before using Start or launch profiles."))
+        Text(L10n.text("Clone it to create a local VM before using Start or launch settings."))
           .font(.callout)
           .foregroundStyle(.secondary)
 
@@ -250,37 +248,59 @@ struct VMDetailView: View {
 
   private var networkSection: some View {
     GroupBox(L10n.text("Network")) {
-      HStack {
-        Text(L10n.text("IP Address")).foregroundStyle(.secondary)
-        Spacer()
-        if let ipAddress {
-          Text(ipAddress)
-            .font(.system(.callout, design: .monospaced))
-            .textSelection(.enabled)
-          Button {
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(ipAddress, forType: .string)
-          } label: {
-            Image(systemName: "doc.on.doc")
-          }
-          .buttonStyle(.borderless)
-          .help(L10n.text("Copy"))
-        } else if isLookingUpIP {
-          ProgressView().controlSize(.small)
-        } else {
-          Button(L10n.text("Look Up")) { lookUpIP() }
+      VStack(alignment: .leading, spacing: 10) {
+        HStack {
+          Text(L10n.text("IP Address")).foregroundStyle(.secondary)
+          Spacer()
+          if let ipAddress {
+            Text(ipAddress)
+              .font(.system(.callout, design: .monospaced))
+              .textSelection(.enabled)
+            Button {
+              NSPasteboard.general.clearContents()
+              NSPasteboard.general.setString(ipAddress, forType: .string)
+            } label: {
+              Image(systemName: "doc.on.doc")
+            }
             .buttonStyle(.borderless)
+            .help(L10n.text("Copy"))
+          } else if isLookingUpIP {
+            ProgressView().controlSize(.small)
+          } else {
+            Button(L10n.text("Look Up")) { lookUpIP() }
+              .buttonStyle(.borderless)
+          }
         }
+        .font(.callout)
+
+        if case .bridged = currentSettings.network {
+          Text(L10n.text("Bridged networking uses ARP for IP lookup."))
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+
+        CommandPreview(action: ipLookupAction)
       }
-      .font(.callout)
       .padding(.vertical, 6)
     }
+  }
+
+  private var ipLookupAction: CommandAction {
+    store.ipLookupAction(
+      for: entry.name,
+      settings: currentSettings,
+      waitSeconds: 15
+    )
   }
 
   private func lookUpIP() {
     isLookingUpIP = true
     Task {
-      ipAddress = await store.ipAddress(for: entry.name, waitSeconds: 15)
+      ipAddress = await store.ipAddress(
+        for: entry.name,
+        settings: currentSettings,
+        waitSeconds: 15
+      )
       isLookingUpIP = false
     }
   }
@@ -332,34 +352,22 @@ struct VMDetailView: View {
     }
   }
 
-  private var profileSection: some View {
+  private var launchSettingsSection: some View {
     GroupBox(L10n.text("Launch")) {
       VStack(alignment: .leading, spacing: 10) {
-        let available = store.profiles.profiles(for: entry.name)
-
         HStack {
-          if available.isEmpty {
-            Text(L10n.text("No profile yet; the VM will start with default arguments."))
-              .font(.callout)
-              .foregroundStyle(.secondary)
-          } else {
-            Picker(L10n.text("Profile"), selection: $selectedProfileID) {
-              ForEach(available) { profile in
-                Text(profile.name).tag(Optional(profile.id))
-              }
-            }
-            .labelsHidden()
-            .frame(maxWidth: 220)
-          }
+          Text(L10n.text("Launch Settings"))
+            .font(.callout.weight(.medium))
 
           Spacer()
 
-          Button(available.isEmpty ? L10n.text("Create Profile…") : L10n.text("Edit…")) {
-            isEditingProfile = true
+          Button(L10n.text("Edit Launch Settings…")) {
+            isEditingRunSettings = true
           }
+          .buttonStyle(.borderless)
         }
 
-        let warnings = currentProfile.validate()
+        let warnings = currentSettings.validate()
         if !warnings.isEmpty {
           VStack(alignment: .leading, spacing: 4) {
             ForEach(warnings) { warning in
@@ -375,7 +383,7 @@ struct VMDetailView: View {
           }
         }
 
-        CommandPreview(action: CommandAction(arguments: currentProfile.arguments(vmName: entry.name)))
+        CommandPreview(action: CommandAction(arguments: currentSettings.arguments(vmName: entry.name)))
       }
       .padding(.vertical, 4)
     }

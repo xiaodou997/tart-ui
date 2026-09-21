@@ -1,13 +1,10 @@
 import Foundation
 
-/// A named set of the common `tart run` options exposed by TartUI.
+/// The single set of common `tart run` options saved for one VM.
 ///
-/// TartUI intentionally keeps this model small: if an option is not visible in
-/// the current run-profile editor, it is not silently preserved or executed.
-public struct RunProfile: Codable, Sendable, Hashable, Identifiable {
-  public var id: UUID
-  public var name: String
-
+/// TartUI deliberately keeps this surface small and visible: every stored option
+/// has a matching control in the launch-settings editor.
+public struct RunSettings: Codable, Sendable, Hashable {
   // Display and input
   public var noGraphics: Bool
   public var vnc: Bool
@@ -24,8 +21,6 @@ public struct RunProfile: Codable, Sendable, Hashable, Identifiable {
   public var network: NetworkMode
 
   public init(
-    id: UUID = UUID(),
-    name: String = "Default",
     noGraphics: Bool = false,
     vnc: Bool = false,
     noClipboard: Bool = false,
@@ -34,8 +29,6 @@ public struct RunProfile: Codable, Sendable, Hashable, Identifiable {
     directoryShares: [String] = [],
     network: NetworkMode = .shared
   ) {
-    self.id = id
-    self.name = name
     self.noGraphics = noGraphics
     self.vnc = vnc
     self.noClipboard = noClipboard
@@ -48,7 +41,7 @@ public struct RunProfile: Codable, Sendable, Hashable, Identifiable {
 
 // MARK: - Command generation
 
-extension RunProfile {
+extension RunSettings {
   /// Complete argv passed to the Tart executable.
   public func arguments(vmName: String) -> [String] {
     var arguments = ["run", vmName]
@@ -70,6 +63,15 @@ extension RunProfile {
   /// Copy-pasteable command preview shown throughout TartUI.
   public func command(vmName: String, executable: String = "tart") -> String {
     CommandAction(arguments: arguments(vmName: vmName), executable: executable).command
+  }
+
+  /// Tart's DHCP resolver does not work for bridged networking. ARP is the
+  /// built-in resolver intended for bridged VMs; the other modes keep DHCP.
+  public var ipResolver: IPResolver {
+    if case .bridged = network {
+      return .arp
+    }
+    return .dhcp
   }
 
   private func networkArguments() -> [String] {
@@ -94,7 +96,7 @@ extension RunProfile {
 
 // MARK: - Validation
 
-extension RunProfile {
+extension RunSettings {
   public struct Warning: Sendable, Hashable, Identifiable {
     public let id = UUID()
     public let message: String
@@ -138,7 +140,6 @@ extension RunProfile {
         ))
       }
     }
-
 
     return warnings
   }

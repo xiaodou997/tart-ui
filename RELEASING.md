@@ -85,6 +85,8 @@ Before announcing a release, verify:
 - Tart detection/managed installation still works;
 - Clone Image shows and executes the same `tart clone ...` command;
 - a local VM can Start, Stop and Suspend where supported;
+- editing Launch Settings changes the visible `tart run ...` preview and persists after relaunch;
+- Bridged IP lookup shows and executes `tart ip ... --resolver arp`, while non-bridged modes use `--resolver dhcp`;
 - command history shows the actual command, state, stdout and stderr;
 - OCI Image Cache entries cannot be started as local VMs;
 - both English and Simplified Chinese resources load;
