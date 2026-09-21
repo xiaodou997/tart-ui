@@ -86,19 +86,8 @@ extension RunProfile {
     case .hostOnly:
       return ["--net-host"]
 
-    case let .softnet(options):
-      var arguments = ["--net-softnet"]
-      if !options.allowedCIDRs.isEmpty {
-        arguments.append("--net-softnet-allow=\(options.allowedCIDRs.joined(separator: ","))")
-      }
-      if !options.blockedCIDRs.isEmpty {
-        arguments.append("--net-softnet-block=\(options.blockedCIDRs.joined(separator: ","))")
-      }
-      if !options.exposedPorts.isEmpty {
-        let spec = options.exposedPorts.map(\.argumentValue).joined(separator: ",")
-        arguments.append("--net-softnet-expose=\(spec)")
-      }
-      return arguments
+    case .softnet:
+      return ["--net-softnet"]
     }
   }
 }
@@ -150,23 +139,6 @@ extension RunProfile {
       }
     }
 
-    if case let .softnet(options) = network {
-      for port in options.exposedPorts {
-        if !(1...65535).contains(port.hostPort) || !(1...65535).contains(port.guestPort) {
-          warnings.append(Warning(
-            message: "Port \(port.argumentValue) is outside the valid range 1–65535.",
-            isBlocking: true
-          ))
-        }
-      }
-
-      if !options.exposedPorts.isEmpty && options.allowedCIDRs.isEmpty {
-        warnings.append(Warning(
-          message: "Port forwarding is configured without allowed networks; Softnet's default restrictions may block external connections.",
-          isBlocking: false
-        ))
-      }
-    }
 
     return warnings
   }
