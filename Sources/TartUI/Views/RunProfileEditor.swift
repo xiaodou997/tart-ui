@@ -2,10 +2,10 @@ import AppKit
 import SwiftUI
 import TartKit
 
-/// A focused editor for the launch options people change most often.
+/// A focused editor for the launch options TartUI currently supports.
 ///
-/// Less common Tart flags remain supported by RunProfile for compatibility, but
-/// they are intentionally not presented as a large advanced configuration form.
+/// RunProfile intentionally mirrors this visible surface so hidden legacy
+/// arguments cannot continue affecting a VM after the UI stops exposing them.
 struct RunProfileEditor: View {
   @State private var profile: RunProfile
   @State private var availableBridgeInterfaces: [BridgedNetworkInterfaceInfo] = []
