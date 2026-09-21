@@ -123,7 +123,6 @@
 "tart does not provide a way to list logged-in registries." = "tart 未提供查询已登录仓库的方式。";
 "Login succeeded." = "登录成功。";
 "Logged out." = "已注销。";
-"Profile Name" = "配置名称";
 "Disable Clipboard Sharing" = "禁用剪贴板共享";
 "Boot into Recovery Mode" = "进入恢复模式";
 "Network" = "网络";
@@ -185,10 +184,6 @@
 "Display" = "显示";
 "Configuration" = "配置";
 "%@ GB used / %@ GB" = "%@ GB 已用 / %@ GB";
-"Run Profile" = "启动配置";
-"No profile yet; the VM will start with default arguments." = "尚未创建配置，将使用默认参数启动。";
-"Profile" = "配置";
-"Create Profile…" = "新建配置…";
 "Edit…" = "编辑…";
 "Local VM" = "本地虚拟机";
 "Stopping…" = "正在关机…";
@@ -203,9 +198,6 @@
 "IP Address" = "IP 地址";
 "Copy" = "复制";
 "Look Up" = "查询";
-"Failed to read run profiles; they were reset: %@" = "启动配置读取失败，已重置：%@";
-"Failed to save run profiles: %@" = "启动配置保存失败：%@";
-"The run profile has conflicts. Fix them before starting." = "启动配置有冲突，请先修正后再启动。";
 "Stop all running VMs before changing the Tart runtime." = "更换 Tart runtime 前，请先停止所有正在运行的虚拟机。";
 "Stop all running VMs before updating Tart." = "更新 Tart 前，请先停止所有正在运行的虚拟机。";
 "Create Linux VM \"%@\"" = "创建 Linux 虚拟机“%@”";
@@ -243,7 +235,14 @@
 "Using tart %@." = "正在使用 tart %@。";
 "Managed Tart" = "托管 Tart";
 
-/* Simplified Run Profile */
+"Launch Settings" = "启动设置";
+"Edit Launch Settings…" = "编辑启动设置…";
+"Failed to read launch settings; they were reset: %@" = "启动设置读取失败，已重置：%@";
+"Failed to save launch settings: %@" = "启动设置保存失败：%@";
+"The launch settings have conflicts. Fix them before starting." = "启动设置有冲突，请先修正后再启动。";
+"Clone it to create a local VM before using Start or launch settings." = "请先克隆为本地虚拟机，再使用启动和启动设置。";
+"Bridged networking uses ARP for IP lookup." = "桥接网络查询 IP 时使用 ARP 解析。";
+/* Launch settings */
 "Launch" = "启动";
 "Softnet uses Tart defaults." = "Softnet 使用 Tart 默认设置。";
 "Window" = "窗口";
@@ -256,7 +255,6 @@
 "OCI Image Cache" = "OCI 镜像缓存";
 "Not runnable" = "不可直接运行";
 "This is a cached registry image, not a runnable VM." = "这是从 Registry 缓存到本地的镜像，不是可直接运行的虚拟机。";
-"Clone it to create a local VM before using Start or launch profiles." = "请先克隆为本地虚拟机，再使用启动和启动配置。";
 "Disk Usage" = "磁盘占用";
 "Delete Cache" = "删除缓存";
 "Delete Cached Image" = "删除缓存镜像";
