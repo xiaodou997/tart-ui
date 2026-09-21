@@ -124,7 +124,6 @@
 "tart does not provide a way to list logged-in registries." = "tart does not provide a way to list logged-in registries.";
 "Login succeeded." = "Login succeeded.";
 "Logged out." = "Logged out.";
-"Profile Name" = "Profile Name";
 "Disable Clipboard Sharing" = "Disable Clipboard Sharing";
 "Boot into Recovery Mode" = "Boot into Recovery Mode";
 "Network" = "Network";
@@ -186,10 +185,6 @@
 "Display" = "Display";
 "Configuration" = "Configuration";
 "%@ GB used / %@ GB" = "%@ GB used / %@ GB";
-"Run Profile" = "Run Profile";
-"No profile yet; the VM will start with default arguments." = "No profile yet; the VM will start with default arguments.";
-"Profile" = "Profile";
-"Create Profile…" = "Create Profile…";
 "Edit…" = "Edit…";
 "Local VM" = "Local VM";
 "Stopping…" = "Stopping…";
@@ -204,9 +199,6 @@
 "IP Address" = "IP Address";
 "Copy" = "Copy";
 "Look Up" = "Look Up";
-"Failed to read run profiles; they were reset: %@" = "Failed to read run profiles; they were reset: %@";
-"Failed to save run profiles: %@" = "Failed to save run profiles: %@";
-"The run profile has conflicts. Fix them before starting." = "The run profile has conflicts. Fix them before starting.";
 "Stop all running VMs before changing the Tart runtime." = "Stop all running VMs before changing the Tart runtime.";
 "Stop all running VMs before updating Tart." = "Stop all running VMs before updating Tart.";
 "Create Linux VM \"%@\"" = "Create Linux VM \"%@\"";
@@ -244,7 +236,14 @@
 "Using tart %@." = "Using tart %@.";
 "Managed Tart" = "Managed Tart";
 
-/* Simplified Run Profile */
+"Launch Settings" = "Launch Settings";
+"Edit Launch Settings…" = "Edit Launch Settings…";
+"Failed to read launch settings; they were reset: %@" = "Failed to read launch settings; they were reset: %@";
+"Failed to save launch settings: %@" = "Failed to save launch settings: %@";
+"The launch settings have conflicts. Fix them before starting." = "The launch settings have conflicts. Fix them before starting.";
+"Clone it to create a local VM before using Start or launch settings." = "Clone it to create a local VM before using Start or launch settings.";
+"Bridged networking uses ARP for IP lookup." = "Bridged networking uses ARP for IP lookup.";
+/* Launch settings */
 "Launch" = "Launch";
 "Softnet uses Tart defaults." = "Softnet uses Tart defaults.";
 "Window" = "Window";
@@ -257,7 +256,6 @@
 "OCI Image Cache" = "OCI Image Cache";
 "Not runnable" = "Not runnable";
 "This is a cached registry image, not a runnable VM." = "This is a cached registry image, not a runnable VM.";
-"Clone it to create a local VM before using Start or launch profiles." = "Clone it to create a local VM before using Start or launch profiles.";
 "Disk Usage" = "Disk Usage";
 "Delete Cache" = "Delete Cache";
 "Delete Cached Image" = "Delete Cached Image";
