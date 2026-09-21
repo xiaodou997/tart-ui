@@ -345,3 +345,24 @@
 "Development" = "Development";
 
 "ASIF (Faster)" = "ASIF (Faster)";
+/* Explicit Tart runtime source */
+"Tart CLI" = "Tart CLI";
+"TartUI uses the official Tart CLI to create and run virtual machines." = "TartUI uses the official Tart CLI to create and run virtual machines.";
+"Application Managed" = "Application Managed";
+"Custom Path" = "Custom Path";
+"Custom Path…" = "Custom Path…";
+"Path" = "Path";
+"Show in Finder" = "Show in Finder";
+"A newer official Tart release is available. Update this Tart with the method that manages it." = "A newer official Tart release is available. Update this Tart with the method that manages it.";
+"Choose Another…" = "Choose Another…";
+"TartUI downloads and manages the official Tart release in Application Support, including updates and rollback." = "TartUI downloads and manages the official Tart release in Application Support, including updates and rollback.";
+"Uses Tart installed by Homebrew or available on PATH. TartUI will not modify the system installation." = "Uses Tart installed by Homebrew or available on PATH. TartUI will not modify the system installation.";
+"Uses exactly the Tart executable you choose. TartUI validates the path before saving it." = "Uses exactly the Tart executable you choose. TartUI validates the path before saving it.";
+"Detect System Tart" = "Detect System Tart";
+"Choose Custom Tart…" = "Choose Custom Tart…";
+"Choose a custom Tart executable first." = "Choose a custom Tart executable first.";
+"TartUI needs the official Tart CLI to create and run virtual machines. Choose how Tart should be provided." = "TartUI needs the official Tart CLI to create and run virtual machines. Choose how Tart should be provided.";
+"TartUI downloads the official release into Application Support and manages updates and rollback." = "TartUI downloads the official release into Application Support and manages updates and rollback.";
+"Use Application Managed" = "Use Application Managed";
+"Use Tart already installed by Homebrew or available on PATH. TartUI will not modify it." = "Use Tart already installed by Homebrew or available on PATH. TartUI will not modify it.";
+"Application Managed Tart is downloaded from official GitHub releases, verified, and stored in your user Application Support folder." = "Application Managed Tart is downloaded from official GitHub releases, verified, and stored in your user Application Support folder.";
