@@ -151,6 +151,16 @@
 "Host Only" = "Host Only";
 "Interface" = "Interface";
 "e.g. en0 or Wi-Fi" = "e.g. en0 or Wi-Fi";
+"Network Adapters" = "Network Adapters";
+"Bridged networking connects the VM directly to one or more host network interfaces." = "Bridged networking connects the VM directly to one or more host network interfaces.";
+"Refresh Network Interfaces" = "Refresh Network Interfaces";
+"No bridgeable network interfaces were found on this Mac." = "No bridgeable network interfaces were found on this Mac.";
+"Adapter" = "Adapter";
+"Remove Network Adapter" = "Remove Network Adapter";
+"Add Network Adapter" = "Add Network Adapter";
+"%@ (Unavailable)" = "%@ (Unavailable)";
+"Select at least one bridged network adapter." = "Select at least one bridged network adapter.";
+"Each bridged network adapter can only be added once." = "Each bridged network adapter can only be added once.";
 "Allowed Networks" = "Allowed Networks";
 "Comma-separated, e.g. 192.168.0.0/24" = "Comma-separated, e.g. 192.168.0.0/24";
 "Blocked Networks" = "Blocked Networks";

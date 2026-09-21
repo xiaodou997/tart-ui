@@ -24,7 +24,7 @@ struct RunProfileArgumentTests {
     profile.noClipboard = true
     profile.suspendable = true
     profile.directoryShares = ["work:/Users/me/My Project:ro"]
-    profile.network = .bridged(interface: "Wi-Fi")
+    profile.network = .bridged(interfaces: ["Wi-Fi"])
 
     #expect(profile.arguments(vmName: "dev vm") == [
       "run",
@@ -144,11 +144,14 @@ struct NetworkModeTests {
     #expect(profile.arguments(vmName: "vm") == ["run", "vm"])
   }
 
-  @Test("桥接网络")
+  @Test("桥接网络支持多张适配器并重复生成参数")
   func bridged() {
-    let profile = RunProfile(network: .bridged(interface: "en0"))
+    let profile = RunProfile(network: .bridged(interfaces: ["en0", "en5"]))
 
-    #expect(profile.arguments(vmName: "vm").contains("--net-bridged=en0"))
+    let arguments = profile.arguments(vmName: "vm")
+    #expect(arguments.contains("--net-bridged=en0"))
+    #expect(arguments.contains("--net-bridged=en5"))
+    #expect(arguments.filter { $0.hasPrefix("--net-bridged=") }.count == 2)
   }
 
   @Test("仅宿主机网络")
@@ -177,30 +180,59 @@ struct NetworkModeTests {
     #expect(arguments.contains("--net-softnet-expose=2222:22,8080:80"))
   }
 
-  @Test("网络模式互斥：不可能同时出现两种网络参数")
+  @Test("网络模式互斥：多张桥接网卡仍然只属于一种网络模式")
   func modesAreMutuallyExclusive() {
-    // 这正是用枚举而非几个并列 Bool 的原因。
     let modes: [NetworkMode] = [
       .shared,
-      .bridged(interface: "en0"),
+      .bridged(interfaces: ["en0", "en5"]),
       .hostOnly,
       .softnet(SoftnetOptions()),
     ]
 
     for mode in modes {
       let arguments = RunProfile(network: mode).arguments(vmName: "vm")
-      let networkFlags = arguments.filter {
-        $0.hasPrefix("--net-bridged") || $0 == "--net-host" || $0 == "--net-softnet"
-      }
-      #expect(networkFlags.count <= 1, "模式 \(mode) 产出了多个网络参数：\(networkFlags)")
+      let families = Set(arguments.compactMap { argument -> String? in
+        if argument.hasPrefix("--net-bridged=") { return "bridged" }
+        if argument == "--net-host" { return "host" }
+        if argument == "--net-softnet" { return "softnet" }
+        return nil
+      })
+      #expect(families.count <= 1, "模式 \(mode) 产出了多种网络参数：\(families)")
     }
   }
 
-  @Test("桥接接口名为空时不产出参数")
-  func emptyBridgeInterfaceIsSkipped() {
-    let profile = RunProfile(network: .bridged(interface: ""))
+  @Test("桥接模式没有适配器时阻止保存或启动")
+  func emptyBridgeInterfaceIsBlocking() {
+    let profile = RunProfile(network: .bridged(interfaces: []))
 
     #expect(!profile.arguments(vmName: "vm").contains { $0.hasPrefix("--net-bridged") })
+    #expect(profile.hasBlockingIssues)
+  }
+
+  @Test("重复的桥接适配器属于阻断性错误")
+  func duplicateBridgeInterfaceIsBlocking() {
+    let profile = RunProfile(network: .bridged(interfaces: ["en0", "en0"]))
+
+    #expect(profile.hasBlockingIssues)
+  }
+
+  @Test("旧版单桥接网卡 JSON 自动迁移")
+  func legacyBridgeProfileDecodes() throws {
+    let data = Data(#"{"bridged":{"interface":"en0"}}"#.utf8)
+
+    let mode = try JSONDecoder().decode(NetworkMode.self, from: data)
+
+    #expect(mode == .bridged(interfaces: ["en0"]))
+  }
+
+  @Test("多桥接网卡 JSON 可以往返")
+  func multipleBridgeInterfacesRoundTrip() throws {
+    let original = NetworkMode.bridged(interfaces: ["en0", "en5"])
+
+    let data = try JSONEncoder().encode(original)
+    let decoded = try JSONDecoder().decode(NetworkMode.self, from: data)
+
+    #expect(decoded == original)
   }
 }
 

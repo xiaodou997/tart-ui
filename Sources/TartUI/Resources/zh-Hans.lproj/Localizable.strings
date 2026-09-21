@@ -150,6 +150,16 @@
 "Host Only" = "仅宿主机";
 "Interface" = "接口名";
 "e.g. en0 or Wi-Fi" = "如 en0 或 Wi-Fi";
+"Network Adapters" = "网络适配器";
+"Bridged networking connects the VM directly to one or more host network interfaces." = "桥接网络会把虚拟机直接连接到一张或多张宿主机网络接口。";
+"Refresh Network Interfaces" = "刷新网络接口";
+"No bridgeable network interfaces were found on this Mac." = "这台 Mac 上没有发现可桥接的网络接口。";
+"Adapter" = "适配器";
+"Remove Network Adapter" = "移除网络适配器";
+"Add Network Adapter" = "添加网络适配器";
+"%@ (Unavailable)" = "%@（不可用）";
+"Select at least one bridged network adapter." = "桥接模式至少需要选择一张网络适配器。";
+"Each bridged network adapter can only be added once." = "同一张桥接网络适配器只能添加一次。";
 "Allowed Networks" = "放行网段";
 "Comma-separated, e.g. 192.168.0.0/24" = "逗号分隔，如 192.168.0.0/24";
 "Blocked Networks" = "阻止网段";
