@@ -48,6 +48,26 @@ jobs:
           test -f "$app/Contents/Resources/TartUI_TartUI.bundle/en.lproj/Localizable.strings"
           test -f "$app/Contents/Resources/TartUI_TartUI.bundle/zh-hans.lproj/Localizable.strings"
 
+      - name: Smoke-test app launch
+        run: |
+          bin_path="$(swift build -c debug --product TartUI --arch arm64 --show-bin-path)"
+          app="$bin_path/TartUI.app"
+          log="$RUNNER_TEMP/tartui-launch.log"
+
+          "$app/Contents/MacOS/TartUI" >"$log" 2>&1 &
+          pid=$!
+          sleep 5
+
+          if ! kill -0 "$pid" 2>/dev/null; then
+            echo "TartUI exited during startup" >&2
+            cat "$log" >&2 || true
+            wait "$pid" || true
+            exit 1
+          fi
+
+          kill "$pid" || true
+          wait "$pid" || true
+
       - name: Package test build
         run: |
           bin_path="$(swift build -c debug --product TartUI --arch arm64 --show-bin-path)"
