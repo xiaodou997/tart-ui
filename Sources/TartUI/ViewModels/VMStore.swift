@@ -639,7 +639,7 @@ final class VMStore {
   }
 
   func pruneOrphanRunSettings() {
-    let existing = Set(entries.map(\.name))
+    let existing = Set(localEntries.map(\.name))
     guard !existing.isEmpty else { return }
     runSettings.prune(keepingOnly: existing)
     persistRunSettings()
