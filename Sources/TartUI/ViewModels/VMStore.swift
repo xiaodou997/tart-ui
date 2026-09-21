@@ -40,8 +40,8 @@ final class VMStore {
   /// Unified history for user-triggered Tart CLI actions.
   let operations = OperationCenter()
 
-  private(set) var profiles = ProfileCollection()
-  private var profileStore: RunProfileStore?
+  private(set) var runSettings = RunSettingsCollection()
+  private var runSettingsStore: RunSettingsStore?
 
   var actionError: String?
 
@@ -234,9 +234,9 @@ final class VMStore {
     self.latestOfficialTartVersion = nil
     self.managedVersions = TartRuntimeInstaller().installedVersions()
 
-    loadProfiles()
+    loadRunSettings()
     await refresh()
-    pruneOrphanProfiles()
+    pruneOrphanRunSettings()
     startAutoSync()
   }
 
@@ -298,55 +298,50 @@ final class VMStore {
     return entries.first { $0.id == id }
   }
 
-  // MARK: - Run profiles
+  // MARK: - Launch settings
 
-  private func loadProfiles() {
+  private func loadRunSettings() {
     do {
-      let store = try RunProfileStore()
-      profileStore = store
-      profiles = try store.load()
+      let store = try RunSettingsStore()
+      runSettingsStore = store
+      runSettings = try store.load()
     } catch {
-      profileStore = try? RunProfileStore()
-      profiles = ProfileCollection()
-      actionError = L10n.format("Failed to read run profiles; they were reset: %@", error.localizedDescription)
+      runSettingsStore = try? RunSettingsStore()
+      runSettings = RunSettingsCollection()
+      actionError = L10n.format("Failed to read launch settings; they were reset: %@", error.localizedDescription)
     }
   }
 
-  func profile(for vmName: String, id: UUID?) -> RunProfile {
-    profiles.profile(for: vmName, id: id)
+  func launchSettings(for vmName: String) -> RunSettings {
+    runSettings.settings(for: vmName)
   }
 
-  func saveProfile(_ profile: RunProfile, for vmName: String) {
-    profiles.upsert(profile, for: vmName)
-    persistProfiles()
+  func saveLaunchSettings(_ settings: RunSettings, for vmName: String) {
+    runSettings.set(settings, for: vmName)
+    persistRunSettings()
   }
 
-  func deleteProfile(id: UUID, for vmName: String) {
-    profiles.remove(profileID: id, for: vmName)
-    persistProfiles()
-  }
-
-  private func persistProfiles() {
-    guard let profileStore else { return }
+  private func persistRunSettings() {
+    guard let runSettingsStore else { return }
     do {
-      try profileStore.save(profiles)
+      try runSettingsStore.save(runSettings)
     } catch {
-      actionError = L10n.format("Failed to save run profiles: %@", error.localizedDescription)
+      actionError = L10n.format("Failed to save launch settings: %@", error.localizedDescription)
     }
   }
 
   // MARK: - VM lifecycle
 
   /// Starts the official tart run process. Tart owns the VM and its native window.
-  func start(vmName: String, profile: RunProfile) {
+  func start(vmName: String, settings: RunSettings) {
     guard let client else { return }
 
-    if profile.hasBlockingIssues {
-      actionError = L10n.text("The run profile has conflicts. Fix them before starting.")
+    if settings.hasBlockingIssues {
+      actionError = L10n.text("The launch settings have conflicts. Fix them before starting.")
       return
     }
 
-    let action = client.runAction(name: vmName, profile: profile)
+    let action = client.runAction(name: vmName, settings: settings)
     operations.run(
       title: L10n.format("Run \"%@\"", vmName),
       action: action,
@@ -486,9 +481,9 @@ final class VMStore {
         execute: { try await client.delete(names: names) }
       )
       for name in names {
-        profiles.removeAll(for: name)
+        runSettings.remove(for: name)
       }
-      persistProfiles()
+      persistRunSettings()
       await refresh()
     } catch {
       actionError = error.localizedDescription
@@ -589,7 +584,7 @@ final class VMStore {
         execute: { try await client.prune(target: target, olderThanDays: olderThanDays, spaceBudgetGB: spaceBudgetGB) }
       )
       await refresh()
-      pruneOrphanProfiles()
+      pruneOrphanRunSettings()
     } catch {
       actionError = error.localizedDescription
     }
@@ -597,15 +592,45 @@ final class VMStore {
 
   // MARK: - Guest access
 
-  func ipAddress(for vmName: String, waitSeconds: UInt? = nil) async -> String? {
+  func ipLookupAction(
+    for vmName: String,
+    settings: RunSettings,
+    waitSeconds: UInt? = nil
+  ) -> CommandAction {
+    let resolver = settings.ipResolver
+
+    if let client {
+      return client.ipAction(name: vmName, waitSeconds: waitSeconds, resolver: resolver)
+    }
+
+    var arguments = ["ip", vmName]
+    if let waitSeconds {
+      arguments += ["--wait", String(waitSeconds)]
+    }
+    arguments += ["--resolver", resolver.rawValue]
+    return CommandAction(arguments: arguments)
+  }
+
+  func ipAddress(
+    for vmName: String,
+    settings: RunSettings,
+    waitSeconds: UInt? = nil
+  ) async -> String? {
     guard let client else { return nil }
-    let action = client.ipAction(name: vmName, waitSeconds: waitSeconds)
+    let resolver = settings.ipResolver
+    let action = client.ipAction(name: vmName, waitSeconds: waitSeconds, resolver: resolver)
 
     do {
       let result = try await operations.perform(
         title: "\(L10n.text("IP Address")): \(vmName)",
         action: action,
-        execute: { try await client.ipResult(name: vmName, waitSeconds: waitSeconds) }
+        execute: {
+          try await client.ipResult(
+            name: vmName,
+            waitSeconds: waitSeconds,
+            resolver: resolver
+          )
+        }
       )
       return result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
     } catch {
@@ -613,10 +638,10 @@ final class VMStore {
     }
   }
 
-  func pruneOrphanProfiles() {
+  func pruneOrphanRunSettings() {
     let existing = Set(entries.map(\.name))
     guard !existing.isEmpty else { return }
-    profiles.prune(keepingOnly: existing)
-    persistProfiles()
+    runSettings.prune(keepingOnly: existing)
+    persistRunSettings()
   }
 }
