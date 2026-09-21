@@ -1,16 +1,17 @@
 import AppKit
 import SwiftUI
 
-/// First-run recovery screen shown when no usable tart executable can be found.
+/// First-run recovery screen shown when the selected Tart runtime is unavailable.
 struct SetupGuideView: View {
   let message: String
   let isInstalling: Bool
-  let onInstall: () -> Void
-  let onChooseExisting: (String) -> Void
+  let onUseManaged: () -> Void
+  let onUseSystem: () -> Void
+  let onChooseCustom: (String) -> Void
   let onRetry: () -> Void
 
   var body: some View {
-    VStack(spacing: 18) {
+    VStack(spacing: 22) {
       Image(systemName: "shippingbox.and.arrow.backward")
         .font(.system(size: 42))
         .foregroundStyle(Color.accentColor)
@@ -19,11 +20,88 @@ struct SetupGuideView: View {
         Text(L10n.text("Tart Required"))
           .font(.title2.weight(.semibold))
 
-        Text(L10n.text("TartUI is a graphical interface for Tart. Install the official runtime or choose an existing Tart executable to continue."))
+        Text(L10n.text("TartUI needs the official Tart CLI to create and run virtual machines. Choose how Tart should be provided."))
           .font(.callout)
           .foregroundStyle(.secondary)
           .multilineTextAlignment(.center)
       }
+
+      HStack(alignment: .top, spacing: 12) {
+        GroupBox {
+          VStack(alignment: .leading, spacing: 12) {
+            HStack {
+              Label(L10n.text("Application Managed"), systemImage: "shippingbox")
+                .font(.headline)
+
+              Spacer()
+
+              Text(L10n.text("Recommended"))
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+            }
+
+            Text(L10n.text("TartUI downloads the official release into Application Support and manages updates and rollback."))
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 4)
+
+            Button {
+              onUseManaged()
+            } label: {
+              if isInstalling {
+                ProgressView()
+                  .controlSize(.small)
+                Text(L10n.text("Installing Tart…"))
+              } else {
+                Label(L10n.text("Use Application Managed"), systemImage: "arrow.down.circle")
+              }
+            }
+            .buttonStyle(.glassProminent)
+            .controlSize(.large)
+            .frame(maxWidth: .infinity)
+            .disabled(isInstalling)
+          }
+          .padding(6)
+          .frame(maxWidth: .infinity, minHeight: 150, alignment: .topLeading)
+        }
+
+        GroupBox {
+          VStack(alignment: .leading, spacing: 12) {
+            Label(L10n.text("System Tart"), systemImage: "terminal")
+              .font(.headline)
+
+            Text(L10n.text("Use Tart already installed by Homebrew or available on PATH. TartUI will not modify it."))
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 4)
+
+            Button {
+              onUseSystem()
+            } label: {
+              Label(L10n.text("Detect System Tart"), systemImage: "arrow.triangle.2.circlepath")
+            }
+            .buttonStyle(.glass)
+            .controlSize(.large)
+            .frame(maxWidth: .infinity)
+            .disabled(isInstalling)
+          }
+          .padding(6)
+          .frame(maxWidth: .infinity, minHeight: 150, alignment: .topLeading)
+        }
+      }
+      .frame(maxWidth: 540)
+
+      Button {
+        chooseCustom()
+      } label: {
+        Label(L10n.text("Choose Custom Tart…"), systemImage: "folder")
+      }
+      .buttonStyle(.borderless)
+      .disabled(isInstalling)
 
       if !message.isEmpty {
         Text(message)
@@ -32,32 +110,6 @@ struct SetupGuideView: View {
           .multilineTextAlignment(.center)
           .textSelection(.enabled)
           .padding(.horizontal, 12)
-      }
-
-      VStack(spacing: 10) {
-        Button {
-          onInstall()
-        } label: {
-          if isInstalling {
-            ProgressView()
-              .controlSize(.small)
-            Text(L10n.text("Installing Tart…"))
-          } else {
-            Label(L10n.text("Install Official Tart"), systemImage: "arrow.down.circle")
-          }
-        }
-        .buttonStyle(.glassProminent)
-        .controlSize(.large)
-        .disabled(isInstalling)
-
-        Button {
-          chooseExisting()
-        } label: {
-          Label(L10n.text("Choose Existing Tart…"), systemImage: "folder")
-        }
-        .buttonStyle(.glass)
-        .controlSize(.large)
-        .disabled(isInstalling)
       }
 
       GroupBox {
@@ -85,21 +137,23 @@ struct SetupGuideView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(6)
       }
+      .frame(maxWidth: 540)
 
-      Text(L10n.text("TartUI downloads official Tart releases from GitHub, verifies the published checksum when available and the macOS code signature, then stores the runtime in your user Application Support folder."))
+      Text(L10n.text("Application Managed Tart is downloaded from official GitHub releases, verified, and stored in your user Application Support folder."))
         .font(.caption)
         .foregroundStyle(.secondary)
         .multilineTextAlignment(.center)
+        .frame(maxWidth: 520)
 
       Button(L10n.text("Check Again"), action: onRetry)
         .buttonStyle(.glass)
         .disabled(isInstalling)
     }
     .padding(32)
-    .frame(maxWidth: 500)
+    .frame(maxWidth: 620)
   }
 
-  private func chooseExisting() {
+  private func chooseCustom() {
     let panel = NSOpenPanel()
     panel.canChooseFiles = true
     panel.canChooseDirectories = false
@@ -109,7 +163,7 @@ struct SetupGuideView: View {
     panel.directoryURL = URL(fileURLWithPath: "/opt/homebrew/bin")
 
     if panel.runModal() == .OK, let url = panel.url {
-      onChooseExisting(url.path)
+      onChooseCustom(url.path)
     }
   }
 }
