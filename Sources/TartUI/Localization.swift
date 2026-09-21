@@ -61,10 +61,13 @@ final class AppLanguageStore {
   var locale: Locale { selection.locale }
 }
 
-/// UI localization backed by the app bundle's string tables.
+/// UI localization backed by TartUI's packaged SwiftPM resource bundle.
 ///
-/// The executable is assembled into a real `.app` by `scripts/bundle.sh`, so
-/// `Bundle.module` resolves to the localized resources packaged with TartUI.
+/// SwiftPM's generated `Bundle.module` accessor contains an absolute build
+/// directory fallback. That is useful while developing, but a manually
+/// assembled macOS app must resolve its resources from the app bundle itself.
+/// Prefer `Contents/Resources/TartUI_TartUI.bundle` in a packaged app and use
+/// `Bundle.module` only in SwiftPM development/test environments.
 @MainActor
 enum L10n {
   static func text(_ key: String) -> String {
@@ -80,12 +83,26 @@ enum L10n {
     let language = defaults.string(forKey: AppLanguage.defaultsKey)
       .flatMap(AppLanguage.init(rawValue:)) ?? .english
 
+    let resources = resourceBundle
+
     guard let localizationName = language.localizationName,
-          let url = Bundle.module.url(forResource: localizationName, withExtension: "lproj"),
+          let url = resources.url(forResource: localizationName, withExtension: "lproj"),
           let bundle = Bundle(url: url)
     else {
-      return Bundle.module
+      return resources
     }
     return bundle
+  }
+
+  private static var resourceBundle: Bundle {
+    if let resourceURL = Bundle.main.resourceURL {
+      let packagedURL = resourceURL.appendingPathComponent("TartUI_TartUI.bundle", isDirectory: true)
+      if let packagedBundle = Bundle(url: packagedURL) {
+        return packagedBundle
+      }
+    }
+
+    // SwiftPM tests and direct executable launches use the generated module bundle.
+    return Bundle.module
   }
 }

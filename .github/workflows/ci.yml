@@ -48,18 +48,34 @@ jobs:
           test -f "$app/Contents/Resources/TartUI_TartUI.bundle/en.lproj/Localizable.strings"
           test -f "$app/Contents/Resources/TartUI_TartUI.bundle/zh-hans.lproj/Localizable.strings"
 
-      - name: Smoke-test app launch
+      - name: Smoke-test packaged app launch
         run: |
           bin_path="$(swift build -c debug --product TartUI --arch arm64 --show-bin-path)"
           app="$bin_path/TartUI.app"
+          build_resources="$bin_path/TartUI_TartUI.bundle"
+          hidden_resources="$RUNNER_TEMP/TartUI_TartUI.bundle.build-only"
           log="$RUNNER_TEMP/tartui-launch.log"
+
+          # SwiftPM's generated Bundle.module accessor can fall back to the absolute
+          # .build resource path. Hide that path so this test proves the standalone
+          # .app really contains and resolves its own resources.
+          if [ -d "$build_resources" ]; then
+            mv "$build_resources" "$hidden_resources"
+          fi
+
+          restore_resources() {
+            if [ -d "$hidden_resources" ]; then
+              mv "$hidden_resources" "$build_resources"
+            fi
+          }
+          trap restore_resources EXIT
 
           "$app/Contents/MacOS/TartUI" >"$log" 2>&1 &
           pid=$!
           sleep 5
 
           if ! kill -0 "$pid" 2>/dev/null; then
-            echo "TartUI exited during startup" >&2
+            echo "TartUI exited during standalone startup" >&2
             cat "$log" >&2 || true
             wait "$pid" || true
             exit 1
