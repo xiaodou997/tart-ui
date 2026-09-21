@@ -60,13 +60,10 @@ public struct RunProfileStore: Sendable {
 
 /// 全部虚拟机的 profile 集合。
 public struct ProfileCollection: Codable, Sendable, Hashable {
-  /// 格式版本，为将来的迁移留出余地。
-  public private(set) var version: Int
   /// 虚拟机名 → 该机的 profile 列表。
   public private(set) var profilesByVM: [String: [RunProfile]]
 
   public init(profilesByVM: [String: [RunProfile]] = [:]) {
-    self.version = 1
     self.profilesByVM = profilesByVM
   }
 
