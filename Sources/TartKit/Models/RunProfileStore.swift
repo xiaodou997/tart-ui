@@ -8,8 +8,6 @@ import Foundation
 public struct RunProfileStore: Sendable {
   /// 存储文件的位置。
   public let fileURL: URL
-  private let legacyFileURL: URL?
-
   /// 默认位置：`~/Library/Application Support/TartUI/run-profiles.json`
   public static func defaultFileURL() throws -> URL {
     let base = try FileManager.default.url(
@@ -23,43 +21,23 @@ public struct RunProfileStore: Sendable {
       .appendingPathComponent("run-profiles.json")
   }
 
-  /// 旧版本位置，仅用于改名后的数据迁移。
-  private static func legacyDefaultFileURL() throws -> URL {
-    let base = try FileManager.default.url(
-      for: .applicationSupportDirectory,
-      in: .userDomainMask,
-      appropriateFor: nil,
-      create: true
-    )
-    return base
-      .appendingPathComponent("TartPro", isDirectory: true)
-      .appendingPathComponent("run-profiles.json")
-  }
-
   public init(fileURL: URL) {
     self.fileURL = fileURL
-    self.legacyFileURL = nil
   }
 
   public init() throws {
     self.fileURL = try Self.defaultFileURL()
-    self.legacyFileURL = try? Self.legacyDefaultFileURL()
   }
 
   // MARK: - 读写
 
   /// 读取全部 profile。文件不存在时返回空集合，不算错误。
   public func load() throws -> ProfileCollection {
-    let sourceURL: URL
-    if FileManager.default.fileExists(atPath: fileURL.path) {
-      sourceURL = fileURL
-    } else if let legacyFileURL,
-              FileManager.default.fileExists(atPath: legacyFileURL.path) {
-      sourceURL = legacyFileURL
-    } else {
+    guard FileManager.default.fileExists(atPath: fileURL.path) else {
       return ProfileCollection()
     }
-    let data = try Data(contentsOf: sourceURL)
+
+    let data = try Data(contentsOf: fileURL)
     // 空文件按空集合处理，避免上一次写入被打断后彻底读不出来。
     guard !data.isEmpty else { return ProfileCollection() }
     return try JSONDecoder().decode(ProfileCollection.self, from: data)
