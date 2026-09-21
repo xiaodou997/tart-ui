@@ -74,19 +74,21 @@ TartUI 不是另一套虚拟化平台，也不是 Tart 的替代实现。
 
 ## Tart 运行时
 
-TartUI 按以下顺序选择 Tart：
+TartUI 现在把 Tart 来源作为一个明确、稳定的用户选择：
 
-1. 用户明确指定的可执行文件；
-2. 系统中已有的 Tart，包括常见 Homebrew 路径；
-3. TartUI 保存在 Application Support 中的官方托管版本。
+- **应用管理**：由 TartUI 下载官方 Tart 正式版到 Application Support，并负责更新与版本回退；
+- **系统 Tart**：使用 Homebrew 或 PATH 中已有的 Tart，TartUI 只使用、不修改；
+- **自定义路径**：只使用用户选择的可执行文件，并在保存前通过 `tart --version` 验证。
 
-如果首次启动没有找到 Tart，可以直接安装官方正式版，也可以选择电脑上已有的 `tart`。手动路径只有通过 `tart --version` 验证后才会保存。
+来源一旦选定就会保持稳定，不会因为之后安装了另一个 Tart 而在后台自动切换。
 
-托管 Tart 版本位于：
+老用户首次升级时会从旧的自动逻辑迁移一次：优先保留已经保存的自定义路径，否则保留当前能找到的系统 Tart，再其次使用已有的应用管理版本。全新环境如果没有任何 Tart，则默认进入“应用管理”。
+
+应用管理的 Tart 位于：
 
     ~/Library/Application Support/TartUI/Runtimes
 
-设置页可以查看当前 Tart 版本、检查 Tart 官方更新、更新 TartUI 托管运行时，以及回退到之前保留的托管版本。
+设置页会显示当前来源、版本和路径，可以检查 Tart 官方更新、更新应用管理版本，以及回退到之前保留的版本。
 
 TartUI 不会修改 Homebrew 或 shell 配置。
 
