@@ -4,8 +4,8 @@ import TartKit
 
 /// A focused editor for the launch options TartUI currently supports.
 ///
-/// RunProfile intentionally mirrors this visible surface so hidden legacy
-/// arguments cannot continue affecting a VM after the UI stops exposing them.
+/// RunProfile mirrors this visible surface so generated Tart commands remain
+/// predictable from the controls shown in the app.
 struct RunProfileEditor: View {
   @State private var profile: RunProfile
   @State private var availableBridgeInterfaces: [BridgedNetworkInterfaceInfo] = []
@@ -356,26 +356,8 @@ struct RunProfileEditor: View {
   }
 
   private func refreshBridgeInterfaces() {
-    let interfaces = BridgedNetworkInterfaceCatalog.available()
-    availableBridgeInterfaces = interfaces
-
-    // Older profiles may store Tart's localized display name ("Wi-Fi") rather
-    // than the stable interface identifier ("en0"). Normalize when possible.
-    guard case let .bridged(selected) = profile.network else { return }
-
-    let normalized = selected.map { value in
-      if interfaces.contains(where: { $0.identifier == value }) {
-        return value
-      }
-
-      return interfaces.first(where: { $0.displayName == value })?.identifier ?? value
-    }
-
-    if normalized != selected {
-      profile.network = .bridged(interfaces: normalized)
-    }
+    availableBridgeInterfaces = BridgedNetworkInterfaceCatalog.available()
   }
-
 }
 
 /// Shared CLI transparency surface used before and after execution.

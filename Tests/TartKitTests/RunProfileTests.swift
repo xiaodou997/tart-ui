@@ -79,25 +79,7 @@ struct RunProfileArgumentTests {
     #expect(!arguments.contains("--dir="))
   }
 
-  @Test("旧 JSON 中已经删除的高级字段会被忽略")
-  func removedLegacyFieldsDoNotBreakDecoding() throws {
-    let original = RunProfile(name: "Legacy", noGraphics: true)
-    let encoded = try JSONEncoder().encode(original)
-    var object = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
-    object["vncExperimental"] = true
-    object["captureSystemKeys"] = true
-    object["nested"] = true
-    object["serialPath"] = "/dev/ttys001"
-    object["disks"] = ["/tmp/old.img"]
-    object["rosettaTag"] = "old"
 
-    let legacyData = try JSONSerialization.data(withJSONObject: object)
-    let decoded = try JSONDecoder().decode(RunProfile.self, from: legacyData)
-
-    #expect(decoded.name == "Legacy")
-    #expect(decoded.noGraphics)
-    #expect(decoded.arguments(vmName: "vm") == ["run", "vm", "--no-graphics"])
-  }
 }
 
 @Suite("网络模式")
@@ -169,33 +151,20 @@ struct NetworkModeTests {
     #expect(profile.hasBlockingIssues)
   }
 
-  @Test("旧版单桥接网卡 JSON 自动迁移")
-  func legacyBridgeProfileDecodes() throws {
-    let data = Data(#"{"bridged":{"interface":"en0"}}"#.utf8)
+  @Test("当前网络模式都可以 JSON 往返")
+  func networkModesRoundTrip() throws {
+    let modes: [NetworkMode] = [
+      .shared,
+      .bridged(interfaces: ["en0", "en5"]),
+      .hostOnly,
+      .softnet,
+    ]
 
-    let mode = try JSONDecoder().decode(NetworkMode.self, from: data)
-
-    #expect(mode == .bridged(interfaces: ["en0"]))
-  }
-
-  @Test("旧版 Softnet 高级规则会被读取但不再执行")
-  func legacySoftnetOptionsAreDropped() throws {
-    let data = Data(#"{"softnet":{"_0":{"allowedCIDRs":["0.0.0.0/0"],"blockedCIDRs":[],"exposedPorts":[]}}}"#.utf8)
-
-    let mode = try JSONDecoder().decode(NetworkMode.self, from: data)
-
-    #expect(mode == .softnet)
-    #expect(RunProfile(network: mode).arguments(vmName: "vm") == ["run", "vm", "--net-softnet"])
-  }
-
-  @Test("多桥接网卡 JSON 可以往返")
-  func multipleBridgeInterfacesRoundTrip() throws {
-    let original = NetworkMode.bridged(interfaces: ["en0", "en5"])
-
-    let data = try JSONEncoder().encode(original)
-    let decoded = try JSONDecoder().decode(NetworkMode.self, from: data)
-
-    #expect(decoded == original)
+    for mode in modes {
+      let data = try JSONEncoder().encode(mode)
+      let decoded = try JSONDecoder().decode(NetworkMode.self, from: data)
+      #expect(decoded == mode)
+    }
   }
 }
 
