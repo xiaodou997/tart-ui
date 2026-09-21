@@ -7,6 +7,16 @@ public enum TartRuntimeSource: String, Sendable, Equatable {
   case system
 }
 
+/// The runtime source explicitly selected by the user.
+///
+/// TartUI keeps this preference separate from discovery so the selected source
+/// remains stable even when Homebrew, PATH or managed runtimes change later.
+public enum TartRuntimePreference: String, CaseIterable, Sendable, Equatable {
+  case managed
+  case system
+  case custom
+}
+
 /// A resolved tart executable.
 public struct TartRuntime: Sendable, Equatable {
   public let binaryURL: URL
@@ -51,6 +61,7 @@ public struct TartLocator: Sendable {
   }
 
   public static let userOverrideDefaultsKey = "TartUIBinaryPath"
+  public static let runtimePreferenceDefaultsKey = "TartUIRuntimePreference"
 
   public static func storedUserOverride(defaults: UserDefaults = .standard) -> String? {
     guard let current = defaults.string(forKey: userOverrideDefaultsKey), !current.isEmpty else {
@@ -59,6 +70,24 @@ public struct TartLocator: Sendable {
     return current
   }
 
+  public static func storedRuntimePreference(
+    defaults: UserDefaults = .standard
+  ) -> TartRuntimePreference? {
+    guard let rawValue = defaults.string(forKey: runtimePreferenceDefaultsKey) else {
+      return nil
+    }
+    return TartRuntimePreference(rawValue: rawValue)
+  }
+
+  public static func saveRuntimePreference(
+    _ preference: TartRuntimePreference,
+    defaults: UserDefaults = .standard
+  ) {
+    defaults.set(preference.rawValue, forKey: runtimePreferenceDefaultsKey)
+  }
+
+  /// Legacy automatic resolution used by TartKit clients outside TartUI.
+  ///
   /// Resolution order:
   /// explicit user path -> known system installs -> PATH -> TartUI-managed fallback.
   public func resolve(userOverride: String? = nil) throws -> TartRuntime {
@@ -90,6 +119,57 @@ public struct TartLocator: Sendable {
     }
 
     throw TartError.binaryNotFound(searchedPaths: searched)
+  }
+
+  /// Resolves only the source selected by the user.
+  ///
+  /// Unlike automatic resolution, this never crosses source boundaries. Choosing
+  /// System Tart will not silently fall back to a managed runtime, and choosing
+  /// Managed Tart will not be replaced later by a Homebrew installation.
+  public func resolve(
+    preference: TartRuntimePreference,
+    customPath: String? = nil
+  ) throws -> TartRuntime {
+    switch preference {
+    case .managed:
+      var searched: [String] = []
+      for path in managedPaths {
+        searched.append(path)
+        if isExecutable(at: path) {
+          return TartRuntime(binaryURL: URL(fileURLWithPath: path), source: .managed)
+        }
+      }
+      throw TartError.binaryNotFound(searchedPaths: searched)
+
+    case .system:
+      var searched: [String] = []
+
+      for path in searchPaths {
+        searched.append(path)
+        if isExecutable(at: path) {
+          return TartRuntime(binaryURL: URL(fileURLWithPath: path), source: .system)
+        }
+      }
+
+      for path in pathsFromEnvironment() {
+        searched.append(path)
+        if isExecutable(at: path) {
+          return TartRuntime(binaryURL: URL(fileURLWithPath: path), source: .system)
+        }
+      }
+
+      throw TartError.binaryNotFound(searchedPaths: searched)
+
+    case .custom:
+      let normalized = customPath?
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+
+      guard let normalized, !normalized.isEmpty else {
+        throw TartError.binaryNotFound(searchedPaths: ["custom Tart path"])
+      }
+
+      return TartRuntime(binaryURL: try validate(path: normalized), source: .userOverride)
+    }
   }
 
   public func locate(userOverride: String? = nil) throws -> URL {

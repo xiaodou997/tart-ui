@@ -295,6 +295,49 @@ struct LocatorTests {
     #expect(runtime.source == .managed)
   }
 
+  @Test("显式选择系统 Tart 时不会回退到托管运行时")
+  func explicitSystemSelectionDoesNotFallBack() {
+    let locator = TartLocator(
+      searchPaths: ["/system/tart"],
+      pathEnvironment: nil,
+      isExecutableFile: { $0 == "/managed/tart" },
+      managedPaths: ["/managed/tart"]
+    )
+
+    #expect(throws: TartError.self) {
+      _ = try locator.resolve(preference: .system)
+    }
+  }
+
+  @Test("显式选择托管 Tart 时不会被系统安装替换")
+  func explicitManagedSelectionIgnoresSystemInstall() throws {
+    let locator = TartLocator(
+      searchPaths: ["/system/tart"],
+      pathEnvironment: nil,
+      isExecutableFile: { $0 == "/system/tart" || $0 == "/managed/tart" },
+      managedPaths: ["/managed/tart"]
+    )
+
+    let runtime = try locator.resolve(preference: .managed)
+    #expect(runtime.binaryURL.path == "/managed/tart")
+    #expect(runtime.source == .managed)
+  }
+
+  @Test("自定义来源只使用用户指定的可执行文件")
+  func customSelectionUsesExactPath() throws {
+    let locator = TartLocator(
+      searchPaths: ["/system/tart"],
+      pathEnvironment: nil,
+      fileExists: { $0 == "/custom/tart" },
+      isExecutableFile: { $0 == "/custom/tart" || $0 == "/system/tart" },
+      managedPaths: []
+    )
+
+    let runtime = try locator.resolve(preference: .custom, customPath: "/custom/tart")
+    #expect(runtime.binaryURL.path == "/custom/tart")
+    #expect(runtime.source == .userOverride)
+  }
+
   @Test("已知位置都落空时回退到 PATH")
   func fallsBackToPathEnvironment() throws {
     // 从终端启动时走这条路径。

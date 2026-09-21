@@ -21,13 +21,17 @@ struct TartUIApp: App {
           SetupGuideView(
             message: error,
             isInstalling: store.isInstallingRuntime,
-            onInstall: { Task { await store.installLatestRuntime() } },
-            onChooseExisting: { path in
+            onUseManaged: {
+              Task { _ = await store.useRuntimePreference(.managed) }
+            },
+            onUseSystem: {
+              Task { _ = await store.useRuntimePreference(.system) }
+            },
+            onChooseCustom: { path in
               Task { _ = await store.applyRuntimePath(path) }
             },
             onRetry: {
-              let override = TartLocator.storedUserOverride()
-              Task { await store.bootstrap(userOverride: override?.isEmpty == false ? override : nil) }
+              Task { await store.bootstrap() }
             }
           )
         } else {
@@ -139,8 +143,7 @@ struct TartUIApp: App {
 
         async let updateCheck: Void = updateStore.check()
 
-        let override = TartLocator.storedUserOverride()
-        await store.bootstrap(userOverride: override?.isEmpty == false ? override : nil)
+        await store.bootstrap()
         await updateCheck
       }
       .alert(

@@ -74,19 +74,21 @@ The VM display window and virtualization lifecycle are owned by Tart itself.
 
 ## Tart runtime
 
-TartUI resolves Tart in this order:
+TartUI keeps the runtime source explicit and stable. You can choose:
 
-1. a path explicitly selected by the user;
-2. an existing system installation, including common Homebrew locations;
-3. an official Tart release managed by TartUI under Application Support.
+- **Application Managed**: TartUI downloads the official Tart release into Application Support and manages updates and rollback;
+- **System Tart**: TartUI uses Tart from Homebrew or PATH and never modifies that installation;
+- **Custom Path**: TartUI uses exactly the executable you select after validating it with `tart --version`.
 
-If Tart is missing, the first-run screen can install the official runtime or select an existing executable. TartUI validates a selected executable with `tart --version` before saving it.
+Once selected, TartUI stays on that source instead of silently switching when another Tart installation appears later.
+
+Existing users are migrated once from the previous automatic behavior: a saved custom path is preserved first, otherwise the currently discoverable system Tart is preserved, then an existing managed runtime. A fresh setup with no Tart defaults to Application Managed.
 
 Managed Tart runtimes are stored under:
 
     ~/Library/Application Support/TartUI/Runtimes
 
-Settings can show the active Tart version, check upstream Tart releases, update a TartUI-managed runtime and roll back to a retained managed version.
+Settings show the active source, version and path, can check upstream Tart releases, update a managed runtime and roll back to a retained managed version.
 
 TartUI does not modify Homebrew or shell configuration.
 

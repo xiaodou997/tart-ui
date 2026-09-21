@@ -20,6 +20,8 @@ final class VMStore {
   private(set) var isCheckingRuntimeUpdate = false
   private(set) var runtimeUpdateError: String?
   private(set) var managedVersions: [String] = []
+  private(set) var runtimePreference: TartRuntimePreference = .managed
+  private(set) var runtimeSelectionError: String?
 
   var runtimeSource: TartRuntimeSource? { runtime?.source }
 
@@ -48,9 +50,23 @@ final class VMStore {
 
   // MARK: - Bootstrap
 
-  func bootstrap(userOverride: String? = nil) async {
+  /// Resolves exactly the runtime source selected by the user.
+  ///
+  /// Existing installations are migrated once from the old automatic behavior:
+  /// a saved custom path wins, otherwise a currently installed system Tart is
+  /// preserved, then an existing managed runtime, and finally managed becomes
+  /// the default for first-time setup.
+  func bootstrap() async {
+    let locator = TartLocator()
+    let defaults = UserDefaults.standard
+    let preference = migratedRuntimePreference(locator: locator, defaults: defaults)
+    runtimePreference = preference
+
     do {
-      let runtime = try TartLocator().resolve(userOverride: userOverride)
+      let runtime = try locator.resolve(
+        preference: preference,
+        customPath: TartLocator.storedUserOverride(defaults: defaults)
+      )
       let client = TartClient(runtime: runtime)
       let version = try await client.version()
       await activate(runtime: runtime, client: client, version: version)
@@ -60,35 +76,68 @@ final class VMStore {
       self.runtime = nil
       self.tartVersion = nil
       self.managedVersions = TartRuntimeInstaller().installedVersions()
+      self.runtimeSelectionError = error.localizedDescription
       self.loadError = error.localizedDescription
     }
   }
 
-  /// Validates a runtime choice before persisting it. Invalid paths never become
-  /// the next-launch default.
+  /// Switches to a stable runtime source. Managed mode uses an already-installed
+  /// managed runtime when possible and downloads the official release only when
+  /// no managed runtime exists yet.
+  func useRuntimePreference(_ preference: TartRuntimePreference) async -> String? {
+    switch preference {
+    case .managed:
+      do {
+        _ = try TartLocator().resolve(preference: .managed)
+        return await activateSelectedRuntime(.managed)
+      } catch {
+        await installLatestRuntime()
+        return runtimeInstallError
+      }
+
+    case .system:
+      return await activateSelectedRuntime(.system)
+
+    case .custom:
+      guard let path = TartLocator.storedUserOverride() else {
+        let message = L10n.text("Choose a custom Tart executable first.")
+        runtimeSelectionError = message
+        if client == nil {
+          loadError = message
+        }
+        return message
+      }
+      return await applyRuntimePath(path)
+    }
+  }
+
+  /// Validates a custom runtime choice before persisting it. Invalid paths never
+  /// become the next-launch default.
   func applyRuntimePath(_ path: String?) async -> String? {
     let normalized = path?.trimmingCharacters(in: .whitespacesAndNewlines)
-    let override = normalized?.isEmpty == false ? normalized : nil
+    guard let normalized, !normalized.isEmpty else {
+      let message = L10n.text("Choose a custom Tart executable first.")
+      runtimeSelectionError = message
+      if client == nil {
+        loadError = message
+      }
+      return message
+    }
 
     do {
-      let runtime = try TartLocator().resolve(userOverride: override)
+      let runtime = try TartLocator().resolve(preference: .custom, customPath: normalized)
       let client = TartClient(runtime: runtime)
       let version = try await client.version()
 
       let defaults = UserDefaults.standard
-      if let override {
-        defaults.set(override, forKey: TartLocator.userOverrideDefaultsKey)
-      } else {
-        defaults.removeObject(forKey: TartLocator.userOverrideDefaultsKey)
-      }
+      defaults.set(normalized, forKey: TartLocator.userOverrideDefaultsKey)
+      TartLocator.saveRuntimePreference(.custom, defaults: defaults)
+      runtimePreference = .custom
 
       await activate(runtime: runtime, client: client, version: version)
       return nil
     } catch {
-      if client == nil {
-        loadError = error.localizedDescription
-      }
-      return error.localizedDescription
+      return recordRuntimeSelectionError(error)
     }
   }
 
@@ -98,6 +147,7 @@ final class VMStore {
 
     isInstallingRuntime = true
     runtimeInstallError = nil
+    runtimeSelectionError = nil
     defer { isInstallingRuntime = false }
 
     do {
@@ -105,15 +155,17 @@ final class VMStore {
       let client = TartClient(runtime: runtime)
       let version = try await client.version()
 
-      let defaults = UserDefaults.standard
-      defaults.removeObject(forKey: TartLocator.userOverrideDefaultsKey)
+      TartLocator.saveRuntimePreference(.managed)
+      runtimePreference = .managed
 
       await activate(runtime: runtime, client: client, version: version)
       latestOfficialTartVersion = version
     } catch {
-      runtimeInstallError = error.localizedDescription
+      let message = error.localizedDescription
+      runtimeInstallError = message
+      runtimeSelectionError = message
       if client == nil {
-        loadError = error.localizedDescription
+        loadError = message
       }
     }
   }
@@ -139,10 +191,64 @@ final class VMStore {
       let runtime = try TartRuntimeInstaller().activateManagedVersion(version)
       let client = TartClient(runtime: runtime)
       let actualVersion = try await client.version()
+      TartLocator.saveRuntimePreference(.managed)
+      runtimePreference = .managed
       await activate(runtime: runtime, client: client, version: actualVersion)
     } catch {
       runtimeUpdateError = error.localizedDescription
     }
+  }
+
+  private func activateSelectedRuntime(
+    _ preference: TartRuntimePreference
+  ) async -> String? {
+    do {
+      let runtime = try TartLocator().resolve(
+        preference: preference,
+        customPath: TartLocator.storedUserOverride()
+      )
+      let client = TartClient(runtime: runtime)
+      let version = try await client.version()
+
+      TartLocator.saveRuntimePreference(preference)
+      runtimePreference = preference
+      await activate(runtime: runtime, client: client, version: version)
+      return nil
+    } catch {
+      return recordRuntimeSelectionError(error)
+    }
+  }
+
+  private func migratedRuntimePreference(
+    locator: TartLocator,
+    defaults: UserDefaults
+  ) -> TartRuntimePreference {
+    if let stored = TartLocator.storedRuntimePreference(defaults: defaults) {
+      return stored
+    }
+
+    let preference: TartRuntimePreference
+    if TartLocator.storedUserOverride(defaults: defaults) != nil {
+      preference = .custom
+    } else if (try? locator.resolve(preference: .system)) != nil {
+      preference = .system
+    } else if (try? locator.resolve(preference: .managed)) != nil {
+      preference = .managed
+    } else {
+      preference = .managed
+    }
+
+    TartLocator.saveRuntimePreference(preference, defaults: defaults)
+    return preference
+  }
+
+  private func recordRuntimeSelectionError(_ error: any Error) -> String {
+    let message = error.localizedDescription
+    runtimeSelectionError = message
+    if client == nil {
+      loadError = message
+    }
+    return message
   }
 
   private func activate(runtime: TartRuntime, client: TartClient, version: String) async {
@@ -152,6 +258,7 @@ final class VMStore {
     self.loadError = nil
     self.runtimeInstallError = nil
     self.runtimeUpdateError = nil
+    self.runtimeSelectionError = nil
     self.latestOfficialTartVersion = nil
     self.managedVersions = TartRuntimeInstaller().installedVersions()
 
